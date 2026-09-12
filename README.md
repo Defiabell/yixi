@@ -185,7 +185,7 @@ npx wrangler pages project create yixi --production-branch main
 npx wrangler pages secret put TOKEN_KEY --project-name yixi
 npx wrangler pages secret put COOKIE_SECRET --project-name yixi
 
-npx wrangler pages deploy --branch main
+npx wrangler pages deploy --branch main --project-name yixi
 ```
 
 You get a `https://<project>.pages.dev`. Note that `*.pages.dev` subdomains are globally unique — if the name is taken, Cloudflare appends a suffix, and that suffixed hostname is the one to use everywhere below.

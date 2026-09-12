@@ -184,7 +184,7 @@ npx wrangler pages project create yixi --production-branch main
 npx wrangler pages secret put TOKEN_KEY --project-name yixi
 npx wrangler pages secret put COOKIE_SECRET --project-name yixi
 
-npx wrangler pages deploy --branch main
+npx wrangler pages deploy --branch main --project-name yixi
 ```
 
 部署完会给你一个 `https://<项目名>.pages.dev`。注意 `*.pages.dev` 的子域名是**全局唯一**的，名字被占用时 Cloudflare 会自动加后缀，那个带后缀的主机名才是后面到处要用的地址。
