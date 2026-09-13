@@ -177,14 +177,14 @@ migration 只需要跑一次，Pages 那份共用同一个数据库。
 
 ```bash
 cd pages
-npx wrangler pages project create yixi --production-branch main
+npx wrangler pages project create yixi-app --production-branch main
 
 # TOKEN_KEY 必须和 Worker 那份【逐字节一致】，
 # 否则 Pages 打不开 Worker 侧封存的 token，反之亦然。
-npx wrangler pages secret put TOKEN_KEY --project-name yixi
-npx wrangler pages secret put COOKIE_SECRET --project-name yixi
+npx wrangler pages secret put TOKEN_KEY --project-name yixi-app
+npx wrangler pages secret put COOKIE_SECRET --project-name yixi-app
 
-npx wrangler pages deploy --branch main --project-name yixi
+npx wrangler pages deploy --branch main --project-name yixi-app
 ```
 
 部署完会给你一个 `https://<项目名>.pages.dev`。注意 `*.pages.dev` 的子域名是**全局唯一**的，名字被占用时 Cloudflare 会自动加后缀，那个带后缀的主机名才是后面到处要用的地址。
@@ -205,8 +205,8 @@ npx wrangler secret put TURNSTILE_SECRET     # 粘贴 secret key
 
 # Pages —— 同样这两个值
 cd pages
-npx wrangler pages secret put TURNSTILE_SITE_KEY --project-name yixi
-npx wrangler pages secret put TURNSTILE_SECRET --project-name yixi
+npx wrangler pages secret put TURNSTILE_SITE_KEY --project-name yixi-app
+npx wrangler pages secret put TURNSTILE_SECRET --project-name yixi-app
 ```
 
 `TURNSTILE_SITE_KEY` 本身是公开的，写成 `wrangler.toml` 里的 `[vars]` 也完全可以。这里当 secret 设，只是为了让两个值一起走，不至于只部署了一半。

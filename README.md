@@ -178,14 +178,14 @@ Migrations only need to run once; the Pages deployment shares the same database.
 
 ```bash
 cd pages
-npx wrangler pages project create yixi --production-branch main
+npx wrangler pages project create yixi-app --production-branch main
 
 # TOKEN_KEY must be byte-for-byte the SAME value as the Worker's, or Pages
 # cannot open tokens that were sealed on the Worker side (and vice versa).
-npx wrangler pages secret put TOKEN_KEY --project-name yixi
-npx wrangler pages secret put COOKIE_SECRET --project-name yixi
+npx wrangler pages secret put TOKEN_KEY --project-name yixi-app
+npx wrangler pages secret put COOKIE_SECRET --project-name yixi-app
 
-npx wrangler pages deploy --branch main --project-name yixi
+npx wrangler pages deploy --branch main --project-name yixi-app
 ```
 
 You get a `https://<project>.pages.dev`. Note that `*.pages.dev` subdomains are globally unique — if the name is taken, Cloudflare appends a suffix, and that suffixed hostname is the one to use everywhere below.
@@ -206,8 +206,8 @@ npx wrangler secret put TURNSTILE_SECRET     # paste the secret key
 
 # Pages — the same two values
 cd pages
-npx wrangler pages secret put TURNSTILE_SITE_KEY --project-name yixi
-npx wrangler pages secret put TURNSTILE_SECRET --project-name yixi
+npx wrangler pages secret put TURNSTILE_SITE_KEY --project-name yixi-app
+npx wrangler pages secret put TURNSTILE_SECRET --project-name yixi-app
 ```
 
 `TURNSTILE_SITE_KEY` is public, so it could equally be a `[vars]` entry in `wrangler.toml`. It is a secret here only so the two values travel together and cannot get half-deployed.
