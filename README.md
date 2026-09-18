@@ -215,7 +215,7 @@ npx wrangler d1 execute yixi --remote --command \
   "UPDATE users SET is_owner = 1 WHERE email = 'you@example.com';"
 ```
 
-`/admin` is entirely optional. Since registration is open, its only remaining job is handing a token to someone who would rather not create an account.
+`/admin` is entirely optional. Since registration is open, it supports issuing tokens and viewing aggregate onboarding conversion. See [measurement definitions](docs/onboarding.md).
 
 ### 8. Set up your first app
 
@@ -292,7 +292,7 @@ Before changing anything, read [CONTRIBUTING.md](CONTRIBUTING.md). It is short, 
 
 The author runs an open instance at **<https://yixi-app.pages.dev>**. Sign up there and you can be breathing before your apps in about ten minutes, with nothing to deploy.
 
-**What the operator can and cannot see.** Your records are yours: the admin page returns a per-account count of how many times you were stopped, and nothing else — no timestamps, no app names, no give-up rate, not even your email address. That is enforced in the SQL rather than in the template, and a test fails if it ever regresses. But be clear-eyed about the shape of the guarantee: whoever runs an instance holds its database, and a database can be queried directly. That is true of this instance and of every other self-hosted service you sign up for.
+**What the operator can and cannot see.** Your records are yours: the admin page returns a per-account count of how many times you were stopped, plus cohort-wide onboarding counts — no timestamps, no app names, no give-up rate, not even your email address. That is enforced in the SQL rather than in the template, and a test fails if it ever regresses. But be clear-eyed about the shape of the guarantee: whoever runs an instance holds its database, and a database can be queried directly. That is true of this instance and of every other self-hosted service you sign up for.
 
 So: use the shared one if you want to try it without work, and run your own if you would rather that sentence not apply to you. Deploying takes about fifteen minutes and the instructions are above.
 

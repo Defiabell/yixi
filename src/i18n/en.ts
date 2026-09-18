@@ -16,6 +16,18 @@
  * it. 一息 stays 一息 — it is the product's name, not a word.
  */
 export const EN: Record<string, string> = {
+  "地址和账号验证通过；请打开目标 App 验证自动化。此检查不计入拦截。": "Address and account verified. Open the target app to test the automation. This check does not count as an interception.",
+  "配置转化": "Setup conversion",
+  "最近 30 天新版自助注册：{n} 个账号；其中 {pending} 个尚未满 7 天。": "New-version self-registrations in the last 30 days: {n}; {pending} are less than 7 days old.",
+  "满 7 天的注册账号：{n}": "Registrations observed for 7 full days: {n}",
+  "7 天内打开配置页：{value}": "Opened setup within 7 days: {value}",
+  "7 天内首次拦截：{value}": "First interception within 7 days: {value}",
+  "首次拦截前未打开配置页：{n}": "First interception without a preceding setup visit: {n}",
+  "首拦后第 7 天仍有拦截：{value}；待观察：{pending}": "Interception on day 7 after activation: {value}; still observing: {pending}",
+  "仅统计本版上线后的自助注册，排除 owner、历史账号与发号账号；其他测试账号无法自动识别。": "Only self-registrations with this release are included. Owner, historical and issued accounts are excluded; other test accounts cannot be identified automatically.",
+  "打开配置页不代表完成配置。首次拦截只证明请求到达，不能证明 iOS 自动化已安装；页面诊断检查不计入。前两项均以满 7 天注册账号为分母，不要求先打开配置页。": "Opening setup does not mean setup is complete. An interception confirms a request, not an installed iOS automation; page diagnostics are excluded. Both initial rates use registrations observed for 7 full days, without requiring a setup visit first.",
+  "留存以首拦后 168 至 192 小时内再次拦截为准，仅纳入已满 192 小时的首拦账号；不要求连续使用。未成熟的窗口不按零计算，分母为零显示 —。": "Retention means another interception from 168 to 192 hours after activation, counting only accounts observed for 192 full hours. Continuous use is not required. Incomplete windows are excluded; an empty denominator displays —.",
+
   // --- shared console chrome (src/ui/console.ts) -----------------------------
   // The two faces and their tabs. 「回看」 (goal-tending) and 「回顾」
   // (interception) are both "looking back"; English splits them into Review

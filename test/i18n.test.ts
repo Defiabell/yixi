@@ -32,6 +32,7 @@ import authRaw from '../src/auth.ts?raw'
 import cryptoRaw from '../src/crypto.ts?raw'
 import datesRaw from '../src/dates.ts?raw'
 import dbRaw from '../src/db.ts?raw'
+import onboardingRaw from '../src/onboarding.ts?raw'
 import gateRaw from '../src/gate.ts?raw'
 import i18nEnRaw from '../src/i18n/en.ts?raw'
 import i18nIndexRaw from '../src/i18n/index.ts?raw'
@@ -59,6 +60,7 @@ import uiReviewRaw from '../src/ui/review.ts?raw'
 import uiSchemefieldRaw from '../src/ui/schemefield.ts?raw'
 import uiSettingsRaw from '../src/ui/settings.ts?raw'
 import uiSetupRaw from '../src/ui/setup.ts?raw'
+import uiOnboardingRaw from '../src/ui/onboarding.ts?raw'
 import uiTodayRaw from '../src/ui/today.ts?raw'
 import uiTodaysetupRaw from '../src/ui/todaysetup.ts?raw'
 
@@ -486,6 +488,7 @@ const SOURCES: Record<string, string> = {
   'src/ui/schemefield.ts': uiSchemefieldRaw,
   'src/ui/review.ts': uiReviewRaw,
   'src/ui/setup.ts': uiSetupRaw,
+  'src/ui/onboarding.ts': uiOnboardingRaw,
 }
 
 /**
@@ -511,6 +514,7 @@ const ALL_SOURCES: Record<string, string> = {
   'src/crypto.ts': cryptoRaw,
   'src/dates.ts': datesRaw,
   'src/db.ts': dbRaw,
+  'src/onboarding.ts': onboardingRaw,
   'src/gate.ts': gateRaw,
   'src/i18n/en.ts': i18nEnRaw,
   'src/i18n/index.ts': i18nIndexRaw,
@@ -538,6 +542,7 @@ const ALL_SOURCES: Record<string, string> = {
   'src/ui/schemefield.ts': uiSchemefieldRaw,
   'src/ui/settings.ts': uiSettingsRaw,
   'src/ui/setup.ts': uiSetupRaw,
+  'src/ui/onboarding.ts': uiOnboardingRaw,
   'src/ui/today.ts': uiTodayRaw,
   'src/ui/todaysetup.ts': uiTodaysetupRaw,
 }
@@ -553,7 +558,7 @@ const ALL_SOURCES: Record<string, string> = {
  * must also bump this number in the same diff, or "guard rail: ALL_SOURCES
  * count" below goes red. Bump both together.
  */
-const ALL_SOURCES_EXPECTED_COUNT = 35
+const ALL_SOURCES_EXPECTED_COUNT = 37
 
 describe('guard rail: ALL_SOURCES has not silently drifted from its pinned count', () => {
   it('covers exactly as many files as it is pinned to', () => {

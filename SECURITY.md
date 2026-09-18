@@ -2,6 +2,8 @@
 
 ## What this software stores
 
+New self-registered accounts also store a measurement version and the first authenticated setup-page visit time. These stay in D1, without analytics payloads or third-party tracking.
+
 A row for every time you reached for a distracting app, with a timestamp, which app it was, and whether you went in or backed out.
 
 That is the thing to hold in your head while reading the rest of this document. A leak here is not "an email address got out." It is a minute-by-minute record of when someone was bored, restless or unable to sleep, and which app they lost to. There is no way to make that data boring, so the design tries to keep the number of people who can read it as close to one as possible — and to be straight with you about where it falls short.
@@ -15,7 +17,7 @@ Everything below describes the code as it is, including the parts that are weake
 | Who | What they can see | What stops them |
 | --- | --- | --- |
 | Whoever runs the deployment | **Everything.** They hold the Cloudflare account, and D1 is queryable from a console. | Nothing technical. This is the reason to self-host rather than to join someone else's instance. |
-| The instance owner, through the app | Per-user attempt counts for the last 7 days, and names they typed themselves. **No event rows, no apps, no timestamps, no email addresses.** | Enforced in SQL, not by convention — see [What the owner cannot see](#what-the-owner-cannot-see). |
+| The instance owner, through the app | Per-user attempt counts for the last 7 days, names, and cohort-wide onboarding counts. **No event rows, no apps, no timestamps, no email addresses.** | Enforced in SQL, not by convention — see [What the owner cannot see](#what-the-owner-cannot-see). |
 | Cloudflare | Everything, as with any hosted platform. | Out of scope. |
 | Someone holding a stolen gate token | Full read/write on that one person: their whole log, their app config, their settings. Nothing about anyone else. | The token is 128 bits of randomness and cannot be guessed. It is the credential; treat it like one. |
 | Someone holding a stolen copy of the database | **Every event row, in the clear.** Plus hashed passwords and encrypted tokens they cannot open. | Tokens are sealed under a key that is not in the database. The log itself is not encrypted at rest beyond whatever D1 provides. |
@@ -71,14 +73,14 @@ Related deliberate choices:
 
 `/review` is a record of one person's worst impulses. A friend who suspects the instance owner can read it will not use the tool honestly, and a tool used dishonestly is worthless. So the guarantee is structural rather than a rule someone has to remember:
 
-1. The only query `src/api/admin.ts` runs against `events` is `countAttemptsPerUser`, a `GROUP BY` returning counts. There is no statement in that file that *could* return an event row.
+1. Per-user event counts use `countAttemptsPerUser`, a `GROUP BY` returning counts. The additional `onboardingCounts` query returns only whole-cohort counts, never per-user milestones. There is no statement in that file that *could* return an event row.
 2. `proceeded` and `abandoned` are not merely dropped at the render layer — **they are not in the SQL.** Someone else's proceed/abandon split is their abandon rate, which is a portrait of their self-control rather than a sign of life, and `/admin` has no business computing it.
 3. Results are narrowed to `{id, name, isOwner, joined, attempts}` immediately, so the render layer physically cannot reach anything else. Email addresses are not selected at all.
 4. There is exactly **one** GET route under `/admin` (plus `POST /admin/users`). Everything else under that prefix is a 404, so no detail endpoint can be reached by guessing a path.
 5. Non-owners get a 403 before a single query runs, on any path and any method.
 6. `test/admin.test.ts` seeds real events with sentinel values that cannot appear by coincidence and asserts none of them reach the page.
 
-The one aggregate that *is* shown — attempts in the last 7 days — exists for one operational reason: telling whether someone's Shortcut was ever wired up correctly.
+Per-user attempts in the last 7 days indicate whether gate requests arrive. Cohort-wide onboarding counts measure setup visits, first interceptions and D7 retention; they cannot prove an iOS automation was installed. See [measurement definitions](docs/onboarding.md).
 
 ## Fail-open is deliberate, and it is a security decision too
 

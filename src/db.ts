@@ -165,8 +165,8 @@ export async function createAccount(
     .prepare(
       `INSERT INTO users
          (name, token_hash, is_owner, created_at,
-          email, password_hash, password_salt, password_iters, token_cipher, token_iv)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
+          email, password_hash, password_salt, password_iters, token_cipher, token_iv, onboarding_version)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1)`,
     )
     .bind(
       a.name,

@@ -213,7 +213,7 @@ npx wrangler d1 execute yixi --remote --command \
   "UPDATE users SET is_owner = 1 WHERE email = 'you@example.com';"
 ```
 
-`/admin` 完全是可选的。既然注册已经开放，它剩下的唯一用途是给一个不想注册账号的人递一把 token。
+`/admin` 完全是可选的。既然注册已经开放，它支持线下发号和查看整体配置转化，见[统计口径](docs/onboarding.md)。
 
 ### 8. 配上第一个 App
 

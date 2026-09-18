@@ -96,6 +96,9 @@ export async function handleGate(request: Request, env: Env): Promise<Response> 
   const config = await getUserApp(env.DB, user.id, app)
   if (!config || !config.enabled) return passing()
 
+  // The setup page's connectivity check must not manufacture activation.
+  if (url.searchParams.get('diagnostic') === '1') return asText ? text('ok') : json({ ok: true })
+
   const now = Date.now()
   const graceUntil = await getGraceUntil(env.DB, user.id, app)
   if (graceUntil !== null && graceUntil > now) {

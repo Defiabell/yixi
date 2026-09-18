@@ -7,6 +7,7 @@ import { inAppBrowserOf } from '../inapp'
 import { fold, hl, icon } from './icons'
 import { listUserApps } from '../db'
 import { revealToken } from '../account'
+import { recordSetupOpened } from '../onboarding'
 
 /**
  * GET /setup — how to actually wire this up, on the phone that has to do it.
@@ -122,6 +123,8 @@ ${copyLine(t, { text: lineFor(a.app), name: a.label, incomplete: token === null 
       ? `<p class="warn">${t('服务器这边读不到你的 token 原文，只存着它的哈希——这个账号是发号时代建的，\n         从来没绑过邮箱和密码。<a href="/claim">绑一次</a>，以后这一页就能直接印出来；\n         或者现在带上 <code>?k=你的token</code> 重新打开这一页。')}</p>`
       : `<p class="masked">············ <a class="linky" href="/setup?show=1">${t('显示')}</a>
          <span class="hint">${t('它是你所有记录的钥匙，别在别人能看见屏幕的时候点。')}</span></p>`
+
+  await recordSetupOpened(env.DB, user.id)
 
   return page({
     title: t('一息 · 怎么配'),
@@ -355,9 +358,9 @@ export function fillBody(sentence: string, body: string): string {
  * That quietly undid the `?show=1` gate: revealing the token once is a
  * deliberate act, having it sit in History forever is not.
  *
- * `fetch` is also the more faithful test. The Shortcut's 「获取 URL 的内容」 is a
- * background HTTP call, not a WebKit navigation — so this now exercises the same
- * kind of request the automation will actually make.
+ * `fetch` verifies authentication and app configuration without navigation.
+ * The diagnostic flag prevents this button from creating an interception: only
+ * opening the target app can test the actual iOS automation.
  *
  * Built per request rather than held as a constant, for the reason
  * `copyLinesScript` in layout.ts is: the four sentences it can print are copy
@@ -387,12 +390,14 @@ function testScript(t: T): string {
       out.hidden = false;
       out.textContent = ${jsonForScript(t('试着连…'))};
       btn.disabled = true;
-      fetch(btn.getAttribute('data-test'), { cache: 'no-store' })
+      fetch(btn.getAttribute('data-test') + '&diagnostic=1', { cache: 'no-store' })
         .then(function (r) { return r.text().then(function (t) { return { ok: r.ok, t: t }; }); })
         .then(function (r) {
           var body = (r.t || '').trim().slice(0, 120);
           if (!r.ok) { out.textContent = fill(${jsonForScript(t('服务器拒绝了：{body}'))}, body); return; }
-          out.textContent = body.indexOf('https') === 0
+          out.textContent = body === 'ok'
+            ? ${jsonForScript(t('地址和账号验证通过；请打开目标 App 验证自动化。此检查不计入拦截。'))}
+            : body.indexOf('https') === 0
             ? ${jsonForScript(t('通了 · 这条会拦你，返回了呼吸页地址'))}
             : fill(${jsonForScript(t('通了 · 返回「{body}」，现在不拦（免打扰窗口里或者这个 App 没启用）'))}, body);
         })

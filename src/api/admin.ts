@@ -12,9 +12,10 @@
 // product used dishonestly is worthless. So the guarantee is structural rather
 // than a rule someone has to remember:
 //
-//   1. The only query this file runs against `events` is countAttemptsPerUser,
+//   1. Per-user events are queried only through countAttemptsPerUser,
 //      which is a GROUP BY returning counts — there is no statement here that
-//      could return an event row even if someone asked it to.
+//      could return an event row even if someone asked it to. Onboarding
+//      additionally returns cohort-wide counts, never account/event rows.
 //   2. Everything past that query is narrowed to `AdminRow` immediately, so the
 //      render layer is handed three fields (id, name, count) and physically
 //      cannot reach anything else.
@@ -33,7 +34,9 @@ import { countAttemptsPerUser, createUser, listUsers, shanghaiDate } from '../db
 import { randomHex, sealToken } from '../crypto'
 import { DEFAULT_THEME, escapeHtml, page } from '../ui/layout'
 import { CONSOLE_CSS, consoleHeader } from '../ui/console'
-import { translator } from '../i18n'
+import { localeOf, translator } from '../i18n'
+import { onboardingCounts } from '../onboarding'
+import { onboardingPanel } from '../ui/onboarding'
 
 const CSS = `
 ${CONSOLE_CSS}
@@ -67,7 +70,7 @@ export async function handleAdmin(request: Request, env: Env, user: User): Promi
 
   const url = new URL(request.url)
   if (url.pathname === '/admin' && request.method === 'GET') {
-    return await renderAdmin(env, user, null)
+    return await renderAdmin(env, user, null, { locale: localeOf(request, user) })
   }
   if (url.pathname === '/admin/users' && request.method === 'POST') {
     return await handleCreateUser(request, env, user)
@@ -137,11 +140,14 @@ async function handleCreateUser(request: Request, env: Env, user: User): Promise
 // --- render ----------------------------------------------------------------
 
 interface RenderOptions {
+  locale?: 'zh' | 'en'
   error?: string
   status?: number
 }
 
 async function renderAdmin(env: Env, user: User, oneTime: OneTime | null, o: RenderOptions = {}): Promise<Response> {
+  const t = translator(o.locale ?? 'zh')
+  const funnel = await onboardingCounts(env.DB)
   const since = shanghaiDate(Date.now() - (WINDOW_DAYS - 1) * 86400000)
   const [users, counts] = await Promise.all([listUsers(env.DB), countAttemptsPerUser(env.DB, since)])
 
@@ -180,6 +186,7 @@ async function renderAdmin(env: Env, user: User, oneTime: OneTime | null, o: Ren
     <p class="note">生成出来的 token <b>只显示这一次</b>，库里只存它的 SHA-256。丢了只能重新建一个人。</p>
   </section>
   <hr class="sep">
+  ${onboardingPanel(funnel, t)}
   <h2>已经发出去的号</h2>
   <p class="note note-tight">「最近 ${WINDOW_DAYS} 天被拦」只是一个计数，用来判断对方的快捷指令到底配通了没有。</p>
   ${rows.map(userRow).join('\n')}
