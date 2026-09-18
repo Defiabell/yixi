@@ -21,6 +21,7 @@ import {
 } from './ui/account'
 import { handleSettings } from './ui/settings'
 import { handleAdmin } from './api/admin'
+import { renderGuide, sitemap } from './ui/guides'
 import { renderLanding } from './ui/landing'
 import { deleteExpiredWebSessions, deleteStaleSessions, setUserLocale } from './db'
 import { checkRate, pruneRateLimits } from './ratelimit'
@@ -105,12 +106,14 @@ export default {
       // browser's own Accept-Language are all there is to go on.
       if (path === '/mock' && method === 'GET') return renderMock(request)
       if (path === '/' && method === 'GET') return renderLanding(request)
+      if ((path === '/guides/iphone-shortcuts' || path === '/compare/one-sec') && method === 'GET') return renderGuide(request)
+      if (path === '/sitemap.xml' && method === 'GET') return sitemap(url.origin)
       // robots.txt is the half of the story a meta tag cannot tell: it names
       // what may be crawled before the crawler has fetched anything. The
       // Disallow list is deliberately redundant with each page's own
       // noindex — a crawler that ignores one still sees the other, and the
       // pages named here are the ones whose URLs carry a session or a token.
-      if (path === '/robots.txt' && method === 'GET') return robotsTxt()
+      if (path === '/robots.txt' && method === 'GET') return robotsTxt(url.origin)
 
       // Home-screen files. Public and cacheable: iOS fetches them without a
       // cookie when the icon is added, and nothing in them is per-user.
@@ -257,22 +260,14 @@ function redact(err: unknown): string {
   return text.replace(/([?&](?:k|token)=)[^&\s"']+/gi, '$1[redacted]').replace(/\b[0-9a-f]{32}\b/gi, '[redacted]')
 }
 
-/**
- * GET /robots.txt — crawl the front door, nothing else.
- *
- * The Allow/Disallow pairs mirror PageOptions.indexable: `/` is the only page
- * meant for strangers, and everything named below either shows one person's
- * own record or carries a session/token in the URL. This is belt to the meta
- * tag's braces — a crawler that honours only one of the two still stays out.
- *
- * No Sitemap: line. With exactly one indexable page a sitemap carries no
- * information a crawler does not already have from `/`, and naming a file
- * that 404s is worse than naming none.
- */
-function robotsTxt(): Response {
+/** Public articles are discoverable; account and token routes stay excluded. */
+function robotsTxt(origin: string): Response {
   const body = [
     'User-agent: *',
     'Allow: /$',
+    'Allow: /guides/iphone-shortcuts$',
+    'Allow: /compare/one-sec$',
+    `Sitemap: ${origin}/sitemap.xml`,
     'Disallow: /b',
     'Disallow: /gate',
     'Disallow: /mock',

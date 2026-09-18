@@ -49,6 +49,7 @@ import uiBreatheRaw from '../src/ui/breathe.ts?raw'
 import uiConsoleRaw from '../src/ui/console.ts?raw'
 import uiGoalsRaw from '../src/ui/goals.ts?raw'
 import uiIconsRaw from '../src/ui/icons.ts?raw'
+import uiGuidesRaw from '../src/ui/guides.ts?raw'
 import uiLandingRaw from '../src/ui/landing.ts?raw'
 import uiLayoutRaw from '../src/ui/layout.ts?raw'
 import uiMockRaw from '../src/ui/mock.ts?raw'
@@ -456,6 +457,7 @@ export const CONVERTED: string[] = [
   'src/ui/todaysetup.ts',
   'src/ui/breathe.ts',
   'src/ui/landing.ts',
+  'src/ui/guides.ts',
   'src/ui/mock.ts',
   'src/ui/layout.ts',
   'src/ui/account.ts',
@@ -475,6 +477,7 @@ const SOURCES: Record<string, string> = {
   'src/ui/todaysetup.ts': uiTodaysetupRaw,
   'src/ui/breathe.ts': uiBreatheRaw,
   'src/ui/landing.ts': uiLandingRaw,
+  'src/ui/guides.ts': uiGuidesRaw,
   'src/ui/mock.ts': uiMockRaw,
   'src/ui/layout.ts': uiLayoutRaw,
   'src/ui/account.ts': uiAccountRaw,
@@ -526,6 +529,7 @@ const ALL_SOURCES: Record<string, string> = {
   'src/ui/goals.ts': uiGoalsRaw,
   'src/ui/icons.ts': uiIconsRaw,
   'src/ui/landing.ts': uiLandingRaw,
+  'src/ui/guides.ts': uiGuidesRaw,
   'src/ui/layout.ts': uiLayoutRaw,
   'src/ui/mock.ts': uiMockRaw,
   'src/ui/progress.ts': uiProgressRaw,
@@ -549,7 +553,7 @@ const ALL_SOURCES: Record<string, string> = {
  * must also bump this number in the same diff, or "guard rail: ALL_SOURCES
  * count" below goes red. Bump both together.
  */
-const ALL_SOURCES_EXPECTED_COUNT = 34
+const ALL_SOURCES_EXPECTED_COUNT = 35
 
 describe('guard rail: ALL_SOURCES has not silently drifted from its pinned count', () => {
   it('covers exactly as many files as it is pinned to', () => {

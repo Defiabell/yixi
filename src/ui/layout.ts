@@ -270,7 +270,7 @@ export interface PageOptions {
    * Let search engines index this page. Defaults to false, which emits
    * `noindex,nofollow`.
    *
-   * Default-deny is the point. Every page here except the landing page is
+   * Default-deny is the point. Pages other than the landing page and public guides are
    * either somebody's own record (/review, /settings, /account) or a URL with
    * a live session in it (/b?s=…, /claim, /recover) — none of that belongs in
    * an index, and a page added later should be private until somebody decides

@@ -469,3 +469,7 @@ The files worth knowing about before you change something:
 | `test/today.test.ts` | that only the first `todayGoalLimit(user)` live goals get a card and the first is the hero, that a checked card sinks below the unchecked ones, that the check button's ink-bloom guards against a double tap filing two POSTs (check, then uncheck), that the jump script holds exactly one synchronous `location.href=` assignment, and — the newest addition — that no rendered `.linky` button or the `.tk` per-day check circle slips back under the 44px tap-target floor |
 
 Three of these strip comments from the rendered inline scripts before asserting on them, because the scripts *carry* comments containing the very words being searched for and a naive match would go green on the bug.
+
+## Public discovery
+
+`src/ui/guides.ts` renders two anonymous articles and an explicit three-URL sitemap (homepage, iPhone guide, one sec comparison). These routes run before authentication and never read D1 or credentials. Like the landing page, localized responses vary on Cookie and Accept-Language. The sitemap uses the request origin for self-hosting. Private routes keep authentication and default noindex metadata.

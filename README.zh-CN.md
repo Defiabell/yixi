@@ -303,3 +303,7 @@ npm run deploy         # 远端 apply migration，然后部署 Worker
 ## License
 
 [MIT](LICENSE)
+
+### 公开教程
+
+首页链接到 `/guides/iphone-shortcuts` 安装教程与 `/compare/one-sec` 比较页。两页均为无需登录的中英双语服务端页面，与首页一起列入 `/sitemap.xml`；语言沿用 cookie 和浏览器偏好，不提供独立语言 URL。含个人 token 的 `/setup` 继续要求登录且禁止索引。竞品来源核对日期为 2026-09-18。

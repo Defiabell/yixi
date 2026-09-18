@@ -299,3 +299,7 @@ So: use the shared one if you want to try it without work, and run your own if y
 ## License
 
 [MIT](LICENSE)
+
+### Public guides
+
+The homepage links to `/guides/iphone-shortcuts` and `/compare/one-sec`. Both are server-rendered, bilingual, available without an account, and listed with `/` in `/sitemap.xml`. Language selection follows the existing cookie and `Accept-Language` behavior; these are not separate language URLs. The personal `/setup` guide remains authenticated and excluded from indexing. Comparison sources were checked on 2026-09-18.

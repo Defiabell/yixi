@@ -32,7 +32,7 @@ export function renderLanding(request: Request): Response {
     lang: loc,
     css: LANDING_CSS,
     script: INAPP_SCRIPT,
-    // The one page here a stranger is meant to find. Everything else stays
+    // The landing page and public guides are discoverable. Private pages stay
     // noindex by default — see PageOptions.indexable.
     indexable: true,
     // One literal where this used to be three concatenated ones: `t()` looks
@@ -95,6 +95,7 @@ export function renderLanding(request: Request): Response {
 <p class="looks go"><a href="/register">${t('注册')}</a><a href="/login">${t('登录')}</a></p>
 
 <p class="foot">${t('已经有别人发给你的 token 了？<a href="/claim">给它绑上邮箱和密码</a>，别重新注册——\n重新注册会拿到一把新的，旧记录就找不回来了。<br>\n配到 iPhone 上的一步一步说明在<a href="/setup">怎么配</a>，登录之后打开就行。<br>\n源码 · <a href="https://github.com/Defiabell/yixi" rel="noreferrer">github.com/Defiabell/yixi</a>')}</p>
+<p><a href="/guides/iphone-shortcuts">${t("iPhone 快捷指令教程：打开 App 前先呼吸十秒")}</a><br><a href="/compare/one-sec">${t("一息与 one sec：安装、功能和隐私比较")}</a></p>
 <p class="lang">${langLine}</p>
 </main>`,
   })

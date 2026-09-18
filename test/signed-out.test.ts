@@ -232,11 +232,13 @@ describe('robots.txt', () => {
 
   /**
    * Naming a sitemap that 404s is worse than naming none — Search Console
-   * reports it as an error forever, and with one indexable page a sitemap
-   * carries nothing `/` does not already say.
+   * reports it as an error forever, and public articles now need discovery beyond the homepage.
    */
   it('promises no sitemap it does not serve', async () => {
     const body = await (await get('/robots.txt')).text()
-    expect(body).not.toMatch(/Sitemap:/i)
+    expect(body).toContain('/sitemap.xml')
+    const sitemap = await get('/sitemap.xml')
+    expect(sitemap.status).toBe(200)
+    expect(sitemap.headers.get('content-type')).toContain('application/xml')
   })
 })
