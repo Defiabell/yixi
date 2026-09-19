@@ -62,6 +62,8 @@ import uiReviewRaw from '../src/ui/review.ts?raw'
 import uiSchemefieldRaw from '../src/ui/schemefield.ts?raw'
 import uiSettingsRaw from '../src/ui/settings.ts?raw'
 import uiSurfRaw from '../src/ui/surf.ts?raw'
+import uiSurfreviewRaw from '../src/ui/surfreview.ts?raw'
+import uiSurfsetupRaw from '../src/ui/surfsetup.ts?raw'
 import uiSetupRaw from '../src/ui/setup.ts?raw'
 import uiOnboardingRaw from '../src/ui/onboarding.ts?raw'
 import uiTodayRaw from '../src/ui/today.ts?raw'
@@ -473,6 +475,8 @@ export const CONVERTED: string[] = [
   'src/ui/review.ts',
   'src/ui/setup.ts',
   'src/ui/surf.ts',
+  'src/ui/surfreview.ts',
+  'src/ui/surfsetup.ts',
 ]
 
 /** Raw source for each CONVERTED path, keyed the same way. */
@@ -495,6 +499,8 @@ const SOURCES: Record<string, string> = {
   'src/ui/review.ts': uiReviewRaw,
   'src/ui/setup.ts': uiSetupRaw,
   'src/ui/surf.ts': uiSurfRaw,
+  'src/ui/surfreview.ts': uiSurfreviewRaw,
+  'src/ui/surfsetup.ts': uiSurfsetupRaw,
   'src/ui/onboarding.ts': uiOnboardingRaw,
 }
 
@@ -552,6 +558,8 @@ const ALL_SOURCES: Record<string, string> = {
   'src/ui/settings.ts': uiSettingsRaw,
   'src/ui/setup.ts': uiSetupRaw,
   'src/ui/surf.ts': uiSurfRaw,
+  'src/ui/surfreview.ts': uiSurfreviewRaw,
+  'src/ui/surfsetup.ts': uiSurfsetupRaw,
   'src/ui/onboarding.ts': uiOnboardingRaw,
   'src/ui/today.ts': uiTodayRaw,
   'src/ui/todaysetup.ts': uiTodaysetupRaw,
@@ -568,7 +576,7 @@ const ALL_SOURCES: Record<string, string> = {
  * must also bump this number in the same diff, or "guard rail: ALL_SOURCES
  * count" below goes red. Bump both together.
  */
-const ALL_SOURCES_EXPECTED_COUNT = 40
+const ALL_SOURCES_EXPECTED_COUNT = 42
 
 describe('guard rail: ALL_SOURCES has not silently drifted from its pinned count', () => {
   it('covers exactly as many files as it is pinned to', () => {

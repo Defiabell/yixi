@@ -898,4 +898,27 @@ export const EN: Record<string, string> = {
   "独自在家无事": "Alone at home with nothing to do",
   "屏幕上看到了什么": "Saw something on a screen",
   "情绪低落": "Feeling low",
+
+  // --- /surf/review, the 30-day look-back (src/ui/surfreview.ts) ------------
+  '三十天 {n} 次': 'Surfed {n} times in 30 days',
+  '过去了 {n}': 'Passed {n}',
+  '点开了 {n}': 'Opened it {n}',
+  '另有 {n} 次没走完。': 'Another {n} were not finished.',
+  '还没有记录。冲动来的时候，点主屏上的「渡」。': 'Nothing recorded yet. When an urge comes, tap “Surf” on the home screen.',
+  '还没有记录。': 'Nothing recorded yet.',
+  三十天: '30 days',
+  几点: 'Time of day',
+  身体: 'Body',
+  引子: 'Triggers',
+  最近三十天每天的冲动次数: 'Daily urge count over the last 30 days',
+  每小时的冲动次数分布: 'Urge count by hour of day',
+
+  // --- /surf/setup, editing triggers and the entry points (src/ui/surfsetup.ts) ---
+  '冲动来的时候，第一步是认出它从哪来。写下你自己的引子，一行一个，最多八条。留空用默认。':
+    'When an urge comes, the first step is naming where it came from. Write your own triggers, one per line, up to eight. Leave it blank to use the defaults.',
+  入口: 'Access',
+  '主屏：在 Safari 打开 /surf，分享 → 添加到主屏幕，会得到一个独立的「渡」图标。':
+    'Home screen: open /surf in Safari, then Share → Add to Home Screen, and you get a separate “Surf” icon.',
+  '快捷指令：新建一个「打开 URL」动作，地址填 {origin}/surf?k=你的令牌（令牌在<a href="/account">账号</a>页），命名为「渡」，就能对 Siri 说。':
+    'Shortcuts: make a new “Open URL” action, with the address {origin}/surf?k=your token (the token is on the <a href="/account">Account</a> page), name it “Surf”, and you can say it to Siri.',
 }

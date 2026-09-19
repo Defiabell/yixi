@@ -10,6 +10,8 @@ import { handleGoals } from './ui/goals'
 import { renderTodaySetup } from './ui/todaysetup'
 import { renderProgress } from './ui/progress'
 import { handleSurf } from './ui/surf'
+import { renderSurfReview } from './ui/surfreview'
+import { handleSurfSetup } from './ui/surfsetup'
 import { iconResponse, manifestResponse, surfIconResponse, surfManifestResponse } from './ui/pwa'
 import { handleCandidates } from './api/candidates'
 import {
@@ -170,6 +172,8 @@ export default {
       let res: Response
       if (path === '/today') res = await handleToday(request, env, user)
       else if (path === '/surf') res = await handleSurf(request, env, user)
+      else if (path === '/surf/review' && method === 'GET') res = await renderSurfReview(request, env, user)
+      else if (path === '/surf/setup') res = await handleSurfSetup(request, env, user)
       else if (path === '/today/goals') res = await handleGoals(request, env, user)
       else if (path === '/today/setup' && method === 'GET') res = await renderTodaySetup(request, env, user)
       else if (path === '/today/review' && method === 'GET') res = await renderProgress(request, env, user)
