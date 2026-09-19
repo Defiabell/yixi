@@ -6,6 +6,7 @@
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { shanghaiHour } from '../src/dates'
+import { getUserById } from '../src/db'
 import {
   bumpUrgeRound,
   createUrge,
@@ -147,6 +148,18 @@ describe('setUserSurfTriggers', () => {
     await setUserSurfTriggers(env.DB, 1, null)
     expect(await surfTriggersColumn(1)).toBeNull()
     expect(surfTriggers({ surf_triggers: await surfTriggersColumn(1) })).toEqual([...DEFAULT_SURF_TRIGGERS])
+  })
+
+  it('round-trips through getUserById, the shape every request-path User read uses', async () => {
+    await setUserSurfTriggers(env.DB, 1, '躺床上刷手机\n运动后血糖低')
+    const configured = await getUserById(env.DB, 1)
+    expect(configured).not.toBeNull()
+    expect(surfTriggers(configured!)).toEqual(['躺床上刷手机', '运动后血糖低'])
+
+    await setUserSurfTriggers(env.DB, 1, null)
+    const reset = await getUserById(env.DB, 1)
+    expect(reset).not.toBeNull()
+    expect(surfTriggers(reset!)).toEqual([...DEFAULT_SURF_TRIGGERS])
   })
 })
 
