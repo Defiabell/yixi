@@ -156,21 +156,22 @@ export function summarizeUrges(rows: Urge[], today: string, days: number): UrgeS
   let unfinished = 0
 
   for (const row of rows) {
+    // A row outside the [today - (days-1), today] window (an older urge
+    // fetched with a wider fromTs than this window needs — /surf/review's
+    // own one-day slack is exactly that) is dropped from every aggregate
+    // below, not only its day's bucket: this function's whole output must
+    // describe exactly the window it was asked for.
+    const day = byDate.get(shanghaiDate(row.started_at))
+    if (!day) continue
+
     total++
     if (row.outcome === 'passed') passed++
     else if (row.outcome === 'opened') opened++
     else unfinished++
 
-    // A row outside the [today - (days-1), today] window (an older urge
-    // fetched with a wider fromTs than this window needs) still counts
-    // toward the totals and distributions above, just not toward any single
-    // day's bucket.
-    const day = byDate.get(shanghaiDate(row.started_at))
-    if (day) {
-      day.total++
-      if (row.outcome === 'opened') day.opened++
-      if (row.outcome === null) day.unfinished++
-    }
+    day.total++
+    if (row.outcome === 'opened') day.opened++
+    if (row.outcome === null) day.unfinished++
 
     const hour = shanghaiHour(row.started_at)
     hours[hour] = (hours[hour] ?? 0) + 1

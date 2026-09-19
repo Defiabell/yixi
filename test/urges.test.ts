@@ -6,7 +6,7 @@
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { shanghaiHour } from '../src/dates'
-import { getUserById } from '../src/db'
+import { getUserById, shanghaiDate } from '../src/db'
 import {
   bumpUrgeRound,
   createUrge,
@@ -251,7 +251,10 @@ describe('summarizeUrges', () => {
       makeUrge({ id: 8, trigger: 'f' }),
       makeUrge({ id: 9, trigger: '' }),
     ]
-    const summary = summarizeUrges(rows, '2026-09-10', 1)
+    // `today` has to be the row's own Shanghai date (every row here defaults
+    // to `started_at: NOW`) now that summarizeUrges drops an out-of-window
+    // row from the trigger tally entirely rather than just its day bucket.
+    const summary = summarizeUrges(rows, shanghaiDate(NOW), 1)
     expect(summary.triggers).toEqual([
       { trigger: 'a', count: 2 },
       { trigger: 'b', count: 2 },
@@ -259,6 +262,40 @@ describe('summarizeUrges', () => {
       { trigger: 'd', count: 1 },
       { trigger: 'e', count: 1 },
     ])
+  })
+
+  it('drops a row outside the window from every aggregate, not only the day buckets', () => {
+    // days=3 keeps ['2026-09-08', '2026-09-09', '2026-09-10']; a row on
+    // today - days ('2026-09-07') is exactly one day short of that window —
+    // still returned by a listUrgesSince fetched with a wider fromTs, and
+    // must count toward nothing here: not total/passed/opened/unfinished,
+    // not hours, not states, not triggers.
+    const outside = makeUrge({
+      id: 1,
+      started_at: Date.UTC(2026, 8, 7, 4, 0), // 2026-09-07 noon Shanghai
+      outcome: 'passed',
+      state: 'hungry',
+      trigger: 'outside-trigger',
+    })
+    const inside = makeUrge({
+      id: 2,
+      started_at: Date.UTC(2026, 8, 9, 4, 0), // 2026-09-09 noon Shanghai — inside the window
+      outcome: 'opened',
+      state: 'angry',
+      trigger: 'inside-trigger',
+    })
+    const summary = summarizeUrges([outside, inside], '2026-09-10', 3)
+
+    expect(summary.total).toBe(1)
+    expect(summary.passed).toBe(0)
+    expect(summary.opened).toBe(1)
+    expect(summary.unfinished).toBe(0)
+    expect(summary.hours.reduce((a, b) => a + b, 0)).toBe(1)
+    expect(summary.states).toEqual({ hungry: 0, angry: 1, lonely: 0, tired: 0, none: 0, '': 0 })
+    expect(summary.triggers).toEqual([{ trigger: 'inside-trigger', count: 1 }])
+    const byDate = new Map(summary.days.map((d) => [d.date, d]))
+    expect(byDate.get('2026-09-08')).toMatchObject({ total: 0 })
+    expect(byDate.get('2026-09-09')).toMatchObject({ total: 1 })
   })
 
   it('unfinished counts exactly the rows with outcome === null', () => {

@@ -365,9 +365,14 @@ describe('the page script', () => {
     expect(js).not.toMatch(/\bawait\b/)
   })
 
-  it('reports through sendBeacon with a non-awaited keepalive fallback', () => {
+  it('reports through sendBeacon with a non-awaited keepalive fallback that asks the server for JSON', () => {
     expect(js).toContain("navigator.sendBeacon('/surf'")
-    expect(js).toMatch(/fetch\('\/surf',\{[^}]*keepalive:true[^}]*\}\)\.catch\(/)
+    // sendBeacon itself cannot set headers, so only the fetch fallback carries
+    // x-yixi: without it the server cannot tell this apart from a plain form
+    // submission and answers with a 303 that drags a full page GET behind it.
+    expect(js).toContain(
+      "fetch('/surf',{method:'POST',body:p,keepalive:true,headers:{'x-yixi':'fetch'}}).catch(function(){})",
+    )
   })
 
   it('drives the ten minutes off performance.now and rAF, not a counting timer', () => {

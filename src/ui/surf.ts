@@ -128,8 +128,8 @@ async function handlePost(request: Request, env: Env, user: User): Promise<Respo
   const op = field(form, 'op')
   const now = Date.now()
   // Only the page's own script sends this header; a request without it —
-  // including a plain form submission from a browser with no JS — gets the
-  // 303 it would have got anyway. Same-origin is enforced by the SameSite
+  // this page has no `<form>`, so in practice that is curl or a test — gets
+  // the 303 it would have got anyway. Same-origin is enforced by the SameSite
   // cookie and CSP `form-action 'self'`; this bit only tells us who is asking.
   const asJson = request.headers.get('x-yixi') === 'fetch'
 
@@ -471,11 +471,12 @@ body[data-step="1"] .a2hs,body[data-step="2"] .a2hs,body[data-step="3"] .a2hs{di
  * `start` is the one exception and it is a `.then()`, not an `await`: the id it
  * returns is what the other three address, and nothing navigates on that tap.
  *
- * WHY performance.now() AND NOT A COUNTER. The ten minutes are measured as
- * `now - t0` inside one requestAnimationFrame loop, so a phone that locks the
- * screen for four minutes comes back with four minutes gone rather than with a
- * timer that stopped counting. The same elapsed value drives the breath, the
- * phase word, the tip carousel and the ring, so none of them can drift apart.
+ * WHY THE rAF TIMESTAMP AND NOT A COUNTER. The ten minutes are measured as
+ * `now - t0` inside one requestAnimationFrame loop, `now` being the timestamp
+ * rAF itself hands the callback, so a phone that locks the screen for four
+ * minutes comes back with four minutes gone rather than with a timer that
+ * stopped counting. The same elapsed value drives the breath, the phase word,
+ * the tip carousel and the ring, so none of them can drift apart.
  *
  * WHY NO COPY IS IN HERE. Every string comes from the config island, so this
  * constant is the same bytes in both languages.
@@ -553,7 +554,7 @@ function reveal(){
 function report(params){
   var p=new URLSearchParams(params);
   try{if(navigator.sendBeacon&&navigator.sendBeacon('/surf',p))return}catch(e){}
-  try{fetch('/surf',{method:'POST',body:p,keepalive:true}).catch(function(){})}catch(e){}
+  try{fetch('/surf',{method:'POST',body:p,keepalive:true,headers:{'x-yixi':'fetch'}}).catch(function(){})}catch(e){}
 }
 
 function start(){

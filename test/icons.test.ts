@@ -22,6 +22,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { renderSetup } from '../src/ui/setup'
 import { handleSettings } from '../src/ui/settings'
 import { handleToday } from '../src/ui/today'
+import { handleSurf } from '../src/ui/surf'
+import { renderSurfReview } from '../src/ui/surfreview'
 import { upsertUserApp } from '../src/db'
 import type { User } from '../src/types'
 
@@ -62,12 +64,22 @@ async function settings(): Promise<string> {
 async function today(u: User = user): Promise<string> {
   return await (await handleToday(new Request(`${BASE}/today`, { headers: { 'user-agent': 'x' } }), env, u)).text()
 }
+/** The 渡 face's flow, GET only — its own step markup carries the orb's SVG. */
+async function surf(): Promise<string> {
+  return await (await handleSurf(new Request(`${BASE}/surf`, { headers: { 'user-agent': 'x' } }), env, user)).text()
+}
+/** The 渡 face's 回看 — renders through consoleHeader same as setup/settings/today. */
+async function surfreview(): Promise<string> {
+  return await (await renderSurfReview(new Request(`${BASE}/surf/review`), env, user)).text()
+}
 
 /** Every icon-bearing page, keyed for readable failure messages. */
 async function allPages(): Promise<Record<string, string>> {
   return {
     '/setup': await setup(),
     '/settings': await settings(),
+    '/surf': await surf(),
+    '/surf/review': await surfreview(),
   }
 }
 

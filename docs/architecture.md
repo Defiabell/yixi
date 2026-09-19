@@ -31,7 +31,7 @@ The entire application is one `fetch` handler and one `scheduled` handler in `sr
                         D1 (SQLite)
 ```
 
-`src/db.ts` takes the `D1Database` binding rather than the whole `Env`, so nothing in it can reach a secret by accident. `src/stats.ts`, `src/snapshot.ts` and `src/account.ts` are the pure-logic layers between the routes and the database; `src/ui/*` owns rendering and nothing else — now including `progress.ts` (`/today/review`) and `todaysetup.ts` (`/today/setup`), the two newest additions to the 今日 face. `src/snapshot.ts` sits in the same layer as `src/stats.ts`: `snapshotUser` is pure — given a database and a day, it computes what that day's `goal_days` row should hold and returns it, without writing anything; `snapshotGoalDays` is the one that upserts, one row per user with a live goal, via `upsertGoalDay`. It is called from exactly two places, the midnight cron in `src/index.ts` and tests, never from a page. Within `src/ui/*.ts`, `schemefield.ts` is not a page — it is the URL-scheme picker field shared verbatim by `/settings` and `/today/goals`, so the two never grow two copies of the same jump-and-pick logic to drift apart. `src/dates.ts` is the same pattern one level up: `addDays`/`isExpired` used to live inside `src/ui/goals.ts` with `/today` importing a page module just to reach two pure date-string functions; both now import them from `src/dates.ts` instead, and neither `src/ui/goals.ts` nor `src/ui/today.ts` re-exports them.
+`src/db.ts` takes the `D1Database` binding rather than the whole `Env`, so nothing in it can reach a secret by accident. `src/stats.ts`, `src/snapshot.ts` and `src/account.ts` are the pure-logic layers between the routes and the database; `src/ui/*` owns rendering and nothing else — now including `progress.ts` (`/today/review`) and `todaysetup.ts` (`/today/setup`), the two newest additions to the 今日 face. `src/snapshot.ts` sits in the same layer as `src/stats.ts`: `snapshotUser` is pure — given a database and a day, it computes what that day's `goal_days` row should hold and returns it, without writing anything; `snapshotGoalDays` is the one that upserts, one row per user with a live goal, via `upsertGoalDay`. It is called from exactly two places, the midnight cron in `src/index.ts` and tests, never from a page. Within `src/ui/*.ts`, `schemefield.ts` is not a page — it is the URL-scheme picker field shared verbatim by `/settings` and `/today/goals`, so the two never grow two copies of the same jump-and-pick logic to drift apart. `src/dates.ts` is the same pattern one level up: `addDays`/`isExpired` used to live inside `src/ui/goals.ts` with `/today` importing a page module just to reach two pure date-string functions; both now import them from `src/dates.ts` instead, and neither `src/ui/goals.ts` nor `src/ui/today.ts` re-exports them. 渡 gets the same split `src/db.ts`/`src/stats.ts` draw for 拦截: `src/urges.ts` holds D1 CRUD for the `urges` table plus the pure `summarizeUrges` aggregation `/surf/review` renders from, so a day boundary or an hour bucket is a unit test rather than a database round trip. `src/ui/breathing.ts` pulled the breathing orb — markup, CSS and timing constants — out of `breathe.ts`, so `/b` and `/surf`'s own ten-minute step share one animation rather than two copies a future change can land in one and silently miss the other. `src/ui/surf.ts` (`/surf`) is 渡's ten-minute flow, one document and five steps switched by `body[data-step]` rather than five round trips. `src/ui/surfreview.ts` (`/surf/review`) is its 30-day look-back, built off `summarizeUrges` the same way `progress.ts` looks back at goal days. `src/ui/surfsetup.ts` (`/surf/setup`) is its 「怎么配」: editing the trigger chips step 0 offers, plus the same home-screen/Shortcuts instructions `todaysetup.ts` gives the other face.
 
 ## Request lifecycle
 
@@ -213,9 +213,9 @@ The cookie used to be a stateless HMAC of `<userId>.<expiry>`, which was cheaper
 
 ## D1 tables
 
-Eight migrations. `0001_init.sql` is the original single-purpose schema; `0002_accounts.sql` adds self-service accounts; `0003_rate_limit.sql` adds the throttle that open registration made necessary; `0004_goals.sql` adds the three tables behind `/today` and `/today/goals`, touching nothing that existed before; `0005_goal_days.sql` adds the one table behind `/today/review`; `0006_user_locale.sql` adds the column a signed-in reader's language choice lives in; `0007_daily_tasks.sql` adds `goal_task_checkins`, gives each sub-task its own `target`/`target_label`, and converts any existing `done_at` timestamp into a check-in row without touching the retired column itself; `0008_today_goals.sql` adds the column holding how many goal cards `/today` puts on the page for that reader.
+Ten migrations. `0001_init.sql` is the original single-purpose schema; `0002_accounts.sql` adds self-service accounts; `0003_rate_limit.sql` adds the throttle that open registration made necessary; `0004_goals.sql` adds the three tables behind `/today` and `/today/goals`, touching nothing that existed before; `0005_goal_days.sql` adds the one table behind `/today/review`; `0006_user_locale.sql` adds the column a signed-in reader's language choice lives in; `0007_daily_tasks.sql` adds `goal_task_checkins`, gives each sub-task its own `target`/`target_label`, and converts any existing `done_at` timestamp into a check-in row without touching the retired column itself; `0008_today_goals.sql` adds the column holding how many goal cards `/today` puts on the page for that reader; `0009_onboarding.sql` adds `users.onboarding_version` and `users.setup_opened_at` plus an index on attempt events, for a cohort that only starts counting from accounts registered after it landed; `0010_urges.sql` adds the `urges` table behind 渡's ten-minute flow, plus `users.surf_triggers` — the reader's own trigger chips for its step 0.
 
-`0006` and `0008` are deploy prerequisites rather than optional extras, which is why deploying means `npm run deploy` (migrations first) and never a bare `wrangler deploy`: both `users.locale` and `users.today_goals` are in the projection `findUserByTokenHash` selects, so `/gate` — the hot path every intercepted app opening goes through — fails against a database that has not been migrated, and interception stops.
+`0006`, `0008` and `0010` are deploy prerequisites rather than optional extras, which is why deploying means `npm run deploy` (migrations first) and never a bare `wrangler deploy`: `users.locale`, `users.today_goals` and `users.surf_triggers` are all in the projection `findUserByTokenHash` selects, so `/gate` — the hot path every intercepted app opening goes through — fails against a database that has not been migrated, and interception stops.
 
 ### `users`
 
@@ -231,6 +231,7 @@ Eight migrations. `0001_init.sql` is the original single-purpose schema; `0002_a
 | `token_cipher` `token_iv` | added in 0002; AES-GCM ciphertext of the same token under `TOKEN_KEY`, plus a fresh 96-bit IV. Exists solely so a signed-in holder can read their own key back. See [SECURITY.md](../SECURITY.md#the-token-trade-off-read-this-one) — this is a deliberate downgrade from hash-only. |
 | `locale` | added in 0006; `'zh'`/`'en'`, or NULL for a reader who has never chosen |
 | `today_goals` | added in 0008; how many goal cards `/today` draws for this reader, 1…9, or NULL for the default. Read through `todayGoalLimit()` in `src/types.ts`, never directly: it is the one number a page hands to `slice()`, so anything stored outside the range falls back to `TODAY_GOAL_LIMIT` rather than reaching the page |
+| `surf_triggers` | added in 0010; this reader's own trigger chips for 渡's step 0, newline-separated free text, or NULL for the built-in four. Read through `surfTriggers()` in `src/types.ts`, never directly — the same permissive-fallback pattern as `today_goals`: it trims, drops blank lines, caps at 8 lines and cuts each to 20 characters regardless of what already made it into the column, and falls back to the default four when what is left is empty |
 
 Every account column is nullable, because a token handed out before accounts existed is still a complete identity; it just cannot log in with a password until somebody `/claim`s it.
 
@@ -326,6 +327,21 @@ Added in `0005_goal_days.sql`. One row per `(user_id, date)`, written once by th
 | `ts` | when the row was written, epoch ms |
 
 A day with no row is not zero — it is unknown, and `/today/review` renders it as a gap rather than guessing. "Today" itself never has a row (the cron has not run yet), so `/today/review` computes today's ratio live, with the same selection rule `snapshotUser` would use.
+
+### `urges` — one row per walk-through, behind 渡
+
+Added in `0010_urges.sql`, alongside `users.surf_triggers` (see above). `id` autoincrement; no separate index needed beyond `(user_id, started_at)`, which both `listUrgesSince`'s ordering and its own day-window filtering lean on.
+
+| column | notes |
+| --- | --- |
+| `started_at` | the moment step 0 recorded the urge. `shanghaiDate(started_at)` decides which day the row belongs to — same Asia/Shanghai convention as `events.date`, but read on demand here rather than stored, because `summarizeUrges` (`src/urges.ts`) is the only place that ever needs it |
+| `ended_at` `outcome` | both `NULL` together mean the walk-through was never finished (page closed mid-flow); `outcome` is `'passed'` or `'opened'` once `ended_at` is set. `finishUrge`'s own `WHERE … outcome IS NULL` makes the write a one-way latch, the same shape as the `email IS NULL` guard on account claiming in `src/db.ts` — a retried beacon after the first one already landed changes nothing and still answers 200 |
+| `state` | the body-state chip from step 0: `hungry`\|`angry`\|`lonely`\|`tired`\|`none`\|`''` (not chosen) |
+| `trigger` | the trigger chip's source text — the account's own configured string (see `users.surf_triggers` above), or `''` for 「其他」/not chosen |
+| `rounds` | how many ten-minute rounds this walk-through went through, starting at 1 |
+| `note` | the one optional follow-up answer, only ever written when `outcome = 'opened'` |
+
+`summarizeUrges` is pure — no D1 access — and is what turns rows already fetched by `listUrgesSince` into what `/surf/review` renders: day buckets, an Asia/Shanghai hour histogram, state counts and a top-5 trigger tally, for a `today`/`days` window the caller names. Anything outside that window is dropped from every one of those totals, not merely left out of its day's bucket — the function's whole output has to describe exactly the window it was asked for, the same discipline `src/stats.ts` holds `attempt` to.
 
 ## The anti-loop mechanism
 
@@ -429,7 +445,7 @@ Also set on every page: `referrer-policy: no-referrer`, `x-content-type-options:
 
 **`jsonScript(id, value)`** is how user-supplied data reaches an inline script: an inert `<script type="application/json">` island with `<`, U+2028 and U+2029 escaped, so a label or a URL scheme can never become code.
 
-`src/ui/console.ts` holds the shared chrome for the tabbed pages (`/review`, `/settings`, `/setup`, `/account`, `/admin`) so they read as one surface rather than five designs. It lives in its own module rather than inside one of those pages, because a page module that doubles as the shared library for its siblings is a dependency direction that only gets worse.
+`src/ui/console.ts` holds the shared chrome for the console's three faces — 今日 (goal-tending: `/today`, `/today/goals`, `/today/review`, `/today/setup`), 拦截 (the original interception console: `/review`, `/settings`, `/setup`) and 渡 (urge-surfing: `/surf`, `/surf/review`, `/surf/setup`) — plus `/account` on every face and `/admin` on 拦截 only for the owner, so all of it reads as one surface rather than a dozen separate designs. Each face keeps its own four-or-five-tab row rather than one long row of everything, with a face switch beside the brand offering the other two in a fixed order; `faceOf()` is the one place a page's tab is mapped to its face. It lives in its own module rather than inside one of those pages, because a page module that doubles as the shared library for its siblings is a dependency direction that only gets worse.
 
 All writes are plain HTML forms with POST/redirect/GET — no fetch, no client validation the server does not repeat. Only the breathing page and `/settings` carry any script at all, and each has a specific reason. `/settings` is the one place that fetches: the candidate picker calls `GET /api/candidates` so the reader never leaves the half-filled form the answer is for.
 
@@ -451,7 +467,7 @@ The button hierarchy on a candidate is deliberate: 「试跳」 is the filled da
 
 ## Tests
 
-709 tests over 30 files, `vitest` with `@cloudflare/vitest-pool-workers`, running against a real Miniflare D1 with the real migrations applied (`vitest.config.ts` reads `./migrations` and hands them to `test/apply-migrations.ts`).
+822 tests over 36 files, `vitest` with `@cloudflare/vitest-pool-workers`, running against a real Miniflare D1 with the real migrations applied (`vitest.config.ts` reads `./migrations` and hands them to `test/apply-migrations.ts`).
 
 The files worth knowing about before you change something:
 

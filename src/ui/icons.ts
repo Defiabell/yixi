@@ -99,9 +99,9 @@ const ICONS: Record<IconName, string> = {
   // A single wave, and the small mark riding above it: the craving as a swell
   // that rises and passes, and staying on top of it rather than under it.
   surf: '<path d="M4.4 15.6a7.8 7.8 0 0 1 15.2 0"/><circle class="fillmark" cx="12" cy="6.2" r="1.6"/>',
-  // Three bars of unequal height, no dot on any of them: unlike review's and
-  // progress's tallies, this is a spread across the day's hours, not a running
-  // total with one day picked out.
+  // Three bars of unequal height, no dot on any of them: unlike progress's
+  // tally, this is a spread across the day's hours, not a running total with
+  // one day picked out.
   surfreview: '<path d="M4.4 19.6h15.2"/><path d="M7.6 16.6v-3.2M12 16.6v-8.4M16.4 16.6v-5.6"/>',
   // Same mark as setup/todaysetup: 渡's 「怎么配」 is the same idea (make the
   // page one tap away) applied to a third shortcut, not a third concept that

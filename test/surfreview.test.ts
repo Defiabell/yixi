@@ -120,6 +120,19 @@ describe('with data', () => {
     expect(main).toContain('另有 4 次没走完。')
   })
 
+  it('does not count a row from outside the 30-day window even though listUrgesSince fetches a day of slack beyond it', async () => {
+    // TODAY-30 sits one day beyond the oldest day the 30-day window keeps
+    // (TODAY-29), but renderSurfReview's own one-day fetch slack
+    // (REVIEW_DAYS+1) still hands this row to summarizeUrges — which must
+    // still drop it from 三十天/过去了/点开了, not merely from a day dot.
+    await urge({ userId: 1, state: 'tired', trigger: '躺床上刷手机', date: addDays(TODAY, -30) }, 'passed')
+    await urge({ userId: 1, state: 'hungry', trigger: '', date: TODAY }, 'opened')
+    const main = mainOf(await render())
+    expect(main).toContain('三十天 1 次')
+    expect(main).toContain('过去了 0')
+    expect(main).toContain('点开了 1')
+  })
+
   it('omits the unfinished footnote once nothing is unfinished', async () => {
     await urge({ userId: 1, state: 'tired', trigger: '', date: TODAY }, 'passed')
     const main = mainOf(await render())
