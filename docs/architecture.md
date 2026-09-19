@@ -134,9 +134,9 @@ When a request authenticated by `?k=`, the response gets a `Set-Cookie` appended
 
 ### The cron: `scheduled`
 
-Two ticks a day, told apart by `event.cron` — one trims, the other snapshots, and neither knows the other exists.
+One trigger, `0 4,16 * * *`, runs twice daily. The UTC hour/minute in `event.scheduledTime` selects cleanup or snapshots, even if execution is delayed. The old separate expressions remain accepted during trigger propagation; unknown expressions or times are rejected before touching the database.
 
-**`0 4 * * *` UTC — noon in Shanghai**, which is when nobody is mid-interception.
+**04:00 UTC — noon in Shanghai**, which is when nobody is mid-interception.
 
 ```
 deleteStaleSessions(now − 7 days)      a `sessions` row older than a week can
@@ -148,7 +148,7 @@ pruneRateLimits(now − 24h)             comfortably past the longest window
 
 **`events` is never touched.** That history is the product.
 
-**`0 16 * * *` UTC — 00:00 in Shanghai** (`SNAPSHOT_CRON`, defined in `src/snapshot.ts`). It fires a moment after the day it is about to summarize has already ended, so `snapshotDate(now)` backs the clock up 60 seconds before converting to a calendar day — the tick's own instant must never leak into the date it writes, or the snapshot would name the day that just started instead of the one that just finished.
+**16:00 UTC — 00:00 in Shanghai**. It fires a moment after the day it is about to summarize has already ended, so `snapshotDate(now)` backs the clock up 60 seconds before converting to a calendar day — the tick's own instant must never leak into the date it writes, or the snapshot would name the day that just started instead of the one that just finished.
 
 For every user with at least one non-archived goal (`listUsersWithLiveGoals`), `snapshotUser` computes one row, pure and unwritten until the caller upserts it:
 

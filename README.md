@@ -86,7 +86,7 @@ One codebase, two Cloudflare deployments, sharing one D1 database:
 | Deployment | Config | Job |
 | --- | --- | --- |
 | **Pages** | `pages/wrangler.toml` | the hostname people actually open |
-| **Worker** | `wrangler.toml` | the two nightly crons — cleanup at noon Shanghai, the `goal_days` snapshot at 00:00 |
+| **Worker** | `wrangler.toml` | one daily trigger — cleanup at noon Shanghai, the `goal_days` snapshot at 00:00 |
 
 This is worth reading even if you are nowhere near China, because it is a real and reusable piece of operational knowledge about Cloudflare's shared hostnames.
 
@@ -94,7 +94,7 @@ This is worth reading even if you are nowhere near China, because it is a real a
 
 `*.pages.dev` is currently clean, so Pages gets the human-facing hostname. Same edge, same runtime, same code, same database; only the hostname differs. `pages/functions/[[path]].ts` is one line that forwards every request into the same Worker `fetch` handler.
 
-**The Worker deployment stays because Pages has no Cron Triggers.** Both nightly crons are fired by Cloudflare itself, so neither cares that its own hostname is unreachable from China.
+**The Worker deployment stays because Pages has no Cron Triggers.** Both daily ticks are fired by Cloudflare itself, so neither cares that its own hostname is unreachable from China.
 
 Two things to know before copying this pattern:
 
@@ -240,7 +240,7 @@ npx wrangler d1 execute yixi --remote --command \
 ## Project layout
 
 ```
-src/index.ts        route table, three auth shapes, the two crons
+src/index.ts        route table, three auth shapes, the twice-daily cron
 src/gate.ts         /gate and /resolve — the only machine-facing routes
 src/auth.ts         ?k= token, cookie session, constant-time compares
 src/account.ts      register / login / claim / recover; the closed recovery loop

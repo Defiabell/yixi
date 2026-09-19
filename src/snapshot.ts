@@ -5,7 +5,7 @@ import {
   countTaskCheckinsOn, getUserById, listCheckins, listGoals, listUsersWithLiveGoals, shanghaiDate, upsertGoalDay,
 } from './db'
 
-/** 00:00 Asia/Shanghai. The other cron (noon) only trims tables; this one only snapshots. */
+/** Legacy midnight expression, accepted during the combined trigger rollout. */
 export const SNAPSHOT_CRON = '0 16 * * *'
 
 /**

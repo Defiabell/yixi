@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
-import worker from '../src/index'
+import worker, { DAILY_CRON } from '../src/index'
 import { snapshotDate, snapshotGoalDays, snapshotUser, SNAPSHOT_CRON } from '../src/snapshot'
 import {
   createGoal, createTask, listGoalDays, setGoalArchived, setTaskCheckin, setUserTodayGoals, toggleCheckin,
@@ -103,12 +103,47 @@ describe('snapshotGoalDays', () => {
 })
 
 describe('scheduled()', () => {
-  it('runs the snapshot only on the midnight cron and the trim only on the noon cron', async () => {
+  const NOON = Date.UTC(2031, 2, 9, 4, 0)
+  const ev = (cron: string, scheduledTime: number) => ({ cron, scheduledTime, noRetry() {} }) as unknown as ScheduledController
+
+  async function seed() {
     await createGoal(env.DB, { userId: 1, title: 'a', cue: '', target: '', targetLabel: '', until: null, now: 0 })
-    const ev = (cron: string) => ({ cron, scheduledTime: MIDNIGHT, noRetry() {} }) as unknown as ScheduledController
-    await worker.scheduled(ev('0 4 * * *'), env, {} as ExecutionContext)
+    await env.DB.prepare("INSERT INTO sessions (sid, user_id, app, created_at) VALUES ('stale', 1, 'x', 0)").run()
+  }
+  async function staleExists() {
+    return Boolean(await env.DB.prepare("SELECT sid FROM sessions WHERE sid = 'stale'").first())
+  }
+
+  it.each([DAILY_CRON, '0 4 * * *'])('trims only at noon with %s', async (cron) => {
+    await seed()
+    await worker.scheduled(ev(cron, NOON), env, {} as ExecutionContext)
+    expect(await staleExists()).toBe(false)
     expect(await listGoalDays(env.DB, 1, DAY, DAY)).toEqual([])
-    await worker.scheduled(ev(SNAPSHOT_CRON), env, {} as ExecutionContext)
+  })
+
+  it.each([DAILY_CRON, SNAPSHOT_CRON])('snapshots only at midnight with %s using scheduled time', async (cron) => {
+    await seed()
+    // This fixture is far from wall-clock time: late execution must retain
+    // the date from scheduledTime instead of selecting today's date/job.
+    await worker.scheduled(ev(cron, MIDNIGHT), env, {} as ExecutionContext)
+    expect(await staleExists()).toBe(true)
     expect(await listGoalDays(env.DB, 1, DAY, DAY)).toHaveLength(1)
+    await worker.scheduled(ev(cron, MIDNIGHT), env, {} as ExecutionContext)
+    expect(await listGoalDays(env.DB, 1, DAY, DAY)).toHaveLength(1)
+  })
+
+  it.each([
+    ['* * * * *', NOON],
+    [DAILY_CRON, Date.UTC(2031, 2, 9, 5, 0)],
+    [DAILY_CRON, Date.UTC(2031, 2, 9, 16, 1)],
+    [DAILY_CRON, Number.NaN],
+    ['0 4 * * *', MIDNIGHT],
+    [SNAPSHOT_CRON, NOON],
+  ])('rejects unexpected trigger %s at %s without writes', async (cron, time) => {
+    await seed()
+    await expect(worker.scheduled(ev(cron, time), env, {} as ExecutionContext))
+      .rejects.toThrow('Unexpected scheduled trigger or time')
+    expect(await staleExists()).toBe(true)
+    expect(await listGoalDays(env.DB, 1, DAY, DAY)).toEqual([])
   })
 })

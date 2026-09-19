@@ -26,7 +26,11 @@ import { renderLanding } from './ui/landing'
 import { deleteExpiredWebSessions, deleteStaleSessions, setUserLocale } from './db'
 import { checkRate, pruneRateLimits } from './ratelimit'
 import { SNAPSHOT_CRON, snapshotGoalDays } from './snapshot'
+
 import { isLocale, langCookie } from './i18n'
+
+export const DAILY_CRON = '0 4,16 * * *'
+const TRIM_CRON = '0 4 * * *'
 
 /**
  * Route table. Only /gate and /resolve are machine-facing; everything else is a
@@ -213,23 +217,23 @@ export default {
   },
 
   /**
-   * Two crons share this handler, told apart by `event.cron`:
-   *
-   *   SNAPSHOT_CRON (00:00 Asia/Shanghai) — writes yesterday's goal_days row
-   *   per user and returns; it does not touch the tables below.
-   *
-   *   the other (noon Shanghai) — the original nightly trim of the sessions
-   *   breadcrumb table. `events` is never touched — that history is the
-   *   product. A session older than a week can only be a breathing page
-   *   nobody ever resolved.
-   *
-   * `now` comes from `event.scheduledTime` rather than `Date.now()` so a test
-   * can pin the tick to an exact moment; Cloudflare guarantees the two are
-   * the same instant in production.
+   * One trigger runs twice daily: noon Shanghai trims stale sessions and
+   * midnight snapshots yesterday's goals. Dispatch uses the scheduled UTC
+   * time, not the execution clock, so delayed deliveries retain their job.
+   * Old expressions remain accepted while Cloudflare propagates the change.
+   * Unknown expressions/times fail before any database operation.
    */
   async scheduled(event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
     const now = event.scheduledTime
-    if (event.cron === SNAPSHOT_CRON) {
+    const tick = new Date(now)
+    const hour = tick.getUTCHours()
+    const allowedCron = event.cron === DAILY_CRON
+      || (event.cron === TRIM_CRON && hour === 4)
+      || (event.cron === SNAPSHOT_CRON && hour === 16)
+    if (!allowedCron || tick.getUTCMinutes() !== 0 || (hour !== 4 && hour !== 16)) {
+      throw new Error('Unexpected scheduled trigger or time')
+    }
+    if (hour === 16) {
       const r = await snapshotGoalDays(env.DB, now)
       console.log(`snapshot ${r.date}: ${r.users} users, ${r.failed} failed`)
       return

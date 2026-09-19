@@ -86,13 +86,13 @@
 | 部署 | 配置 | 作用 |
 | --- | --- | --- |
 | **Pages** | `pages/wrangler.toml` | 人访问的那个地址 |
-| **Worker** | `wrangler.toml` | 两条每日 cron——中午清理，零点写 `goal_days` 快照 |
+| **Worker** | `wrangler.toml` | 一条每日触发两次的 cron——中午清理，零点写 `goal_days` 快照 |
 
 **`*.workers.dev` 在中国大陆被 DNS 污染。**这是实测出来的，不是猜的：任取一个 `*.workers.dev` 主机名，在国内三家公共 DNS（223.5.5.5 / 119.29.29.29 / 114.114.114.114）各自返回一个互不相同的地址，而且都不等于境外解析值。这是典型的域名级污染，不是 Cloudflare 被封——`cloudflare.com` 和 `*.pages.dev` 在国内外解析逐字节一致。被单独针对的是 `workers.dev` 这个共享后缀。
 
 `*.pages.dev` 目前干净，所以人访问的地址交给 Pages。同一个边缘、同一个运行时、同一份代码、同一个数据库，只有主机名不同。`pages/functions/[[path]].ts` 里只有一行，把请求转进同一个 Worker `fetch` 处理函数。
 
-**Worker 那份必须留着，因为 Pages 不支持 Cron Trigger。**两条 cron 都由 Cloudflare 自己触发，不需要从国内访问，所以它的主机名被污染无所谓。
+**Worker 那份必须留着，因为 Pages 不支持 Cron Trigger。**两次定时任务都由 Cloudflare 自己触发，不需要从国内访问，所以它的主机名被污染无所谓。
 
 照抄这个方案之前有两件事要知道：
 
@@ -238,7 +238,7 @@ npx wrangler d1 execute yixi --remote --command \
 ## 目录结构
 
 ```
-src/index.ts        路由表、三种认证形态、两条 cron
+src/index.ts        路由表、三种认证形态、一条每日触发两次的 cron
 src/gate.ts         /gate 与 /resolve —— 唯一两条机器面对的路由
 src/auth.ts         ?k= token、cookie session、常数时间比较
 src/account.ts      注册／登录／绑定／找回，闭环找回逻辑

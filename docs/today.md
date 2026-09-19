@@ -72,7 +72,7 @@ The planning page. Same shape as `/settings`: an add form folded at the top, one
 
 ## The nightly snapshot
 
-A second cron, `0 16 * * *` — 00:00 Asia/Shanghai — writes one `goal_days` row per user who has a live goal, for the day that just ended:
+The midnight tick of the shared `0 4,16 * * *` trigger — 00:00 Asia/Shanghai — writes one `goal_days` row per user who has a live goal, for the day that just ended:
 
 ```sql
 goal_days (user_id, date, shown, done, tasks_done, ts)
