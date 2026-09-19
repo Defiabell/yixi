@@ -192,14 +192,25 @@ describe('one nav a face, on every signed-in page', () => {
     }
   })
 
-  it('offers a small a.face link to the other face’s home, beside the brand', async () => {
+  /**
+   * Three faces now exist (今日, 拦截, 渡), so the switch beside the brand is
+   * one `a.face` per face OTHER than the one you are on — two links, not
+   * one — each pointing at that face's home (/today, /review or /surf).
+   * /surf itself has no pages yet (a later task adds them), so this only
+   * asserts what the 今日 and 拦截 pages offer today.
+   */
+  it('offers an a.face link to each of the other faces’ homes, beside the brand', async () => {
     for (const name of Object.keys(TODAY_PAGES)) {
       const page = await html(TODAY_PAGES, name)
+      expect(page.match(/<a class="face" /g), `${name} a.face count`).toHaveLength(2)
       expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/review">拦截\s*›<\/a>/)
+      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/surf">渡\s*›<\/a>/)
     }
     for (const name of Object.keys(BREATHE_PAGES)) {
       const page = await html(BREATHE_PAGES, name)
+      expect(page.match(/<a class="face" /g), `${name} a.face count`).toHaveLength(2)
       expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/today">今日\s*›<\/a>/)
+      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/surf">渡\s*›<\/a>/)
     }
   })
 

@@ -29,9 +29,11 @@ export const EN: Record<string, string> = {
   "留存以首拦后 168 至 192 小时内再次拦截为准，仅纳入已满 192 小时的首拦账号；不要求连续使用。未成熟的窗口不按零计算，分母为零显示 —。": "Retention means another interception from 168 to 192 hours after activation, counting only accounts observed for 192 full hours. Continuous use is not required. Incomplete windows are excluded; an empty denominator displays —.",
 
   // --- shared console chrome (src/ui/console.ts) -----------------------------
-  // The two faces and their tabs. 「回看」 (goal-tending) and 「回顾」
+  // The three faces and their tabs. 「回看」 (goal-tending) and 「回顾」
   // (interception) are both "looking back"; English splits them into Review
-  // and Log so a nav never offers the same word twice.
+  // and Log so a nav never offers the same word twice. 渡's own 「回看」 reuses
+  // the Review entry — same English word, different page, no ambiguity in a
+  // nav that never shows both at once.
   今日: 'Today',
   目标: 'Goals',
   回看: 'Review',
@@ -39,6 +41,7 @@ export const EN: Record<string, string> = {
   回顾: 'Log',
   设置: 'Settings',
   拦截: 'Breathe',
+  渡: 'Surf',
   导航: 'Navigation',
   账号: 'Account',
   发号: 'Invites',

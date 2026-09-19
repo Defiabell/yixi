@@ -12,17 +12,20 @@
 // that doubles as the shared library for its siblings is a dependency direction
 // that only gets worse as pages are added.
 //
-// --- two faces, one header ---------------------------------------------------
+// --- three faces, one header -------------------------------------------------
 //
-// 「今日」 (goal-tending: /today, /today/goals, /today/review, /today/setup) and
-// 「拦截」 (the original interception console: /review, /settings, /setup) grew
-// into two different jobs sharing one nav row, and a five-to-six tab row was
-// already the ceiling for what fits a phone width without wrapping. Splitting
-// the tabs by face keeps each row at four or five, at the cost of one more tap
-// to cross faces — which is the right trade, because nobody bounces between
-// them mid-task. 「账号」 stays on both, because it is not either face's; the
-// owner's 「发号」 stays only on 拦截, because a ticket window for someone
-// else's interceptions has nothing to do with today's three goals.
+// 「今日」 (goal-tending: /today, /today/goals, /today/review, /today/setup),
+// 「拦截」 (the original interception console: /review, /settings, /setup) and
+// 「渡」 (urge-surfing: /surf, /surf/review, /surf/setup) are three different
+// jobs sharing one nav row, and a five-to-six tab row was already the ceiling
+// for what fits a phone width without wrapping. Splitting the tabs by face
+// keeps each row at four or five, at the cost of one more tap to cross faces
+// — which is the right trade, because nobody bounces between them mid-task.
+// 「账号」 stays on every face, because it is none of them; the owner's
+// 「发号」 stays only on 拦截, because a ticket window for someone else's
+// interceptions has nothing to do with today's three goals or a craving being
+// surfed. The face switch beside the brand now offers a link to each of the
+// OTHER two faces, in a fixed order (today → breathe → surf), not just one.
 
 import type { User } from '../types'
 import { msg, type T } from '../i18n'
@@ -37,15 +40,28 @@ import { ICON_CSS, icon, type IconName } from './icons'
  */
 export type ConsolePage = Extract<
   IconName,
-  'today' | 'goals' | 'progress' | 'todaysetup' | 'review' | 'settings' | 'setup' | 'account' | 'admin'
+  | 'today'
+  | 'goals'
+  | 'progress'
+  | 'todaysetup'
+  | 'review'
+  | 'settings'
+  | 'setup'
+  | 'account'
+  | 'admin'
+  | 'surf'
+  | 'surfreview'
+  | 'surfsetup'
 >
 
-/** The two faces one account can be on. `account` and `admin` are not of either. */
-export type Face = 'today' | 'breathe'
+/** The three faces one account can be on. `account` and `admin` are not of any of them. */
+export type Face = 'today' | 'breathe' | 'surf'
 
 /** Which face a page's tab belongs to — the only place that mapping is decided. */
 export function faceOf(page: ConsolePage): Face {
-  return page === 'today' || page === 'goals' || page === 'progress' || page === 'todaysetup' ? 'today' : 'breathe'
+  if (page === 'today' || page === 'goals' || page === 'progress' || page === 'todaysetup') return 'today'
+  if (page === 'surf' || page === 'surfreview' || page === 'surfsetup') return 'surf'
+  return 'breathe'
 }
 
 // The tab tables are module-level constants, so their labels cannot call a
@@ -69,11 +85,25 @@ const BREATHE_TABS: Array<[href: string, name: ConsolePage, label: string]> = [
   ['/setup', 'setup', msg('怎么配')],
 ]
 
+/** 渡: an urge-surfing flow — ride the craving out instead of jumping. */
+const SURF_TABS: Array<[href: string, name: ConsolePage, label: string]> = [
+  ['/surf', 'surf', msg('渡')],
+  ['/surf/review', 'surfreview', msg('回看')],
+  ['/surf/setup', 'surfsetup', msg('怎么配')],
+]
+
 const FACE_HOME: Record<Face, { href: string; label: string }> = {
   today: { href: '/today', label: msg('今日') },
   breathe: { href: '/review', label: msg('拦截') },
+  surf: { href: '/surf', label: msg('渡') },
 }
-const OTHER_FACE: Record<Face, Face> = { today: 'breathe', breathe: 'today' }
+
+/**
+ * Fixed display order for the face switch — today, then breathe, then surf —
+ * so a page on any face always offers the other two in the same sequence
+ * rather than one that depends on which face happens to be current.
+ */
+const FACES: Face[] = ['today', 'breathe', 'surf']
 
 /**
  * Four or five tabs a face, plus 账号 on both and 发号 for the owner on 拦截
@@ -97,12 +127,12 @@ export function consoleHeader(user: User, active: ConsolePage, t: T): string {
   const face = faceOf(active)
   const tab = (href: string, name: ConsolePage, text: string): string =>
     `<a href="${href}"${active === name ? ' class="on" aria-current="page"' : ''}>${icon(name)}<span class="lb">${text}</span></a>`
-  const faceTabs = face === 'today' ? TODAY_TABS : BREATHE_TABS
-  const other = FACE_HOME[OTHER_FACE[face]]
+  const faceTabs = face === 'today' ? TODAY_TABS : face === 'breathe' ? BREATHE_TABS : SURF_TABS
+  const otherFaces = FACES.filter((f) => f !== face).map((f) => FACE_HOME[f])
   return `<header>
   <span class="brand">一息</span><span class="facename">· ${t(FACE_HOME[face].label)}</span>
   <span class="who">${escapeHtml(user.name)}</span>
-  <a class="face" href="${other.href}">${t(other.label)} ›</a>
+  ${otherFaces.map((home) => `<a class="face" href="${home.href}">${t(home.label)} ›</a>`).join('\n  ')}
   <nav aria-label="${t('导航')}">
     ${faceTabs.map(([href, name, label]) => tab(href, name, t(label))).join('\n    ')}
     ${tab('/account', 'account', t('账号'))}

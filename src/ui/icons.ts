@@ -45,6 +45,9 @@ export type IconName =
   | 'setup'
   | 'account'
   | 'admin'
+  | 'surf'
+  | 'surfreview'
+  | 'surfsetup'
   | 'plus'
 
 const ICONS: Record<IconName, string> = {
@@ -93,6 +96,18 @@ const ICONS: Record<IconName, string> = {
   // A key rather than a person: this account IS a token.
   account: '<circle cx="8.8" cy="12" r="3.4"/><path d="M12.2 12h7.4"/><path d="M16.6 12v2.8M19.2 12v2"/>',
   admin: '<path d="M4.8 11.2l6.4-6.4h7.6v7.6l-6.4 6.4z"/><circle cx="15.4" cy="8.6" r="1.3"/>',
+  // A single wave, and the small mark riding above it: the craving as a swell
+  // that rises and passes, and staying on top of it rather than under it.
+  surf: '<path d="M4.4 15.6a7.8 7.8 0 0 1 15.2 0"/><circle class="fillmark" cx="12" cy="6.2" r="1.6"/>',
+  // Three bars of unequal height, no dot on any of them: unlike review's and
+  // progress's tallies, this is a spread across the day's hours, not a running
+  // total with one day picked out.
+  surfreview: '<path d="M4.4 19.6h15.2"/><path d="M7.6 16.6v-3.2M12 16.6v-8.4M16.4 16.6v-5.6"/>',
+  // Same mark as setup/todaysetup: 渡's 「怎么配」 is the same idea (make the
+  // page one tap away) applied to a third shortcut, not a third concept that
+  // happens to share a name.
+  surfsetup:
+    '<path d="M4.6 7.8l1.7 1.7 2.7-3"/><path d="M4.6 15.6l1.7 1.7 2.7-3"/><path d="M12.4 8.6h7M12.4 16.4h7"/>',
   // A plain cross. It rotates 45° when its <details> opens, so the same mark is
   // both 「加一个」 and 「收起来」 without a second icon to learn.
   plus: '<path d="M12 5.4v13.2M5.4 12h13.2"/>',
