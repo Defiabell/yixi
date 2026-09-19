@@ -45,6 +45,7 @@ import snapshotRaw from '../src/snapshot.ts?raw'
 import statsRaw from '../src/stats.ts?raw'
 import turnstileRaw from '../src/turnstile.ts?raw'
 import typesRaw from '../src/types.ts?raw'
+import urgesRaw from '../src/urges.ts?raw'
 import uiAccountRaw from '../src/ui/account.ts?raw'
 import uiBreatheRaw from '../src/ui/breathe.ts?raw'
 import uiConsoleRaw from '../src/ui/console.ts?raw'
@@ -527,6 +528,7 @@ const ALL_SOURCES: Record<string, string> = {
   'src/stats.ts': statsRaw,
   'src/turnstile.ts': turnstileRaw,
   'src/types.ts': typesRaw,
+  'src/urges.ts': urgesRaw,
   'src/ui/account.ts': uiAccountRaw,
   'src/ui/breathe.ts': uiBreatheRaw,
   'src/ui/console.ts': uiConsoleRaw,
@@ -558,7 +560,7 @@ const ALL_SOURCES: Record<string, string> = {
  * must also bump this number in the same diff, or "guard rail: ALL_SOURCES
  * count" below goes red. Bump both together.
  */
-const ALL_SOURCES_EXPECTED_COUNT = 37
+const ALL_SOURCES_EXPECTED_COUNT = 38
 
 describe('guard rail: ALL_SOURCES has not silently drifted from its pinned count', () => {
   it('covers exactly as many files as it is pinned to', () => {

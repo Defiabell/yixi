@@ -854,4 +854,10 @@ export const EN: Record<string, string> = {
   "如果你想从一个 App 开始、接受 Safari 跳转并希望能修改源码，可以先试一息。如果你需要 Android、浏览器网站干预或定时屏蔽，先查看 one sec 的对应平台说明。一息没有经过与 one sec 相同的效果研究，不能套用对方的研究数字。": "Try Yixi if you want to start with one app, accept a Safari hand-off and value editable source. For Android, website interventions or scheduled blocking, check one sec’s platform documentation. Yixi has not undergone the same effectiveness studies, so one sec’s research figures do not apply to it.",
   "来源与核对日期": "Sources and review date",
   "一息源码与功能说明": "Yixi source and feature documentation",
+
+  // --- /surf default triggers (src/types.ts, msg()) -------------------------
+  "躺床上刷手机": "Lying in bed scrolling",
+  "独自在家无事": "Alone at home with nothing to do",
+  "屏幕上看到了什么": "Saw something on a screen",
+  "情绪低落": "Feeling low",
 }

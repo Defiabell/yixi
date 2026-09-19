@@ -1,3 +1,8 @@
+// msg() is dependency-free (see src/i18n/index.ts's own header), so importing
+// it here does not risk a cycle: DEFAULT_SURF_TRIGGERS below is the one place
+// this file needs to mark a Chinese string as UI copy destined for t() later.
+import { msg } from './i18n'
+
 export interface Env {
   DB: D1Database
   /**
@@ -52,6 +57,13 @@ export interface User {
    * could reach a page.
    */
   today_goals?: number | null
+  /**
+   * The user's own 「渡」 trigger chips, newline-separated, or NULL/unset for
+   * the built-in four. Optional for the same reason `today_goals` is above —
+   * every existing `User` literal in the test suite keeps compiling
+   * unedited. Read it through `surfTriggers` below rather than directly.
+   */
+  surf_triggers?: string | null
 }
 
 export interface UserApp {
@@ -186,3 +198,71 @@ export function todayGoalLimit(user: Pick<User, 'today_goals'>): number {
 }
 /** 到期目标「续一期」的长度。 */
 export const GOAL_EXTEND_DAYS = 28
+
+// --- urges（/surf）----------------------------------------------------------
+
+/** 身体状态 chip。'none' 是「都不是」，不是「没选」——第 0 步两组各选一个才进下一步。 */
+export type UrgeState = 'hungry' | 'angry' | 'lonely' | 'tired' | 'none'
+export const URGE_STATES: readonly UrgeState[] = ['hungry', 'angry', 'lonely', 'tired', 'none']
+
+/** 'passed' 过去了；'opened' 我点开了——收尾文案对两者一样安静，不是失败态。 */
+export type UrgeOutcome = 'passed' | 'opened'
+
+/**
+ * 一条冲动流程记录。`outcome`/`ended_at` 为 NULL 表示中途关掉页面，没走完；
+ * `state`/`trigger` 为 `''` 是「没选」而非枚举值（`state` 的枚举里 `'none'`
+ * 才是「都不是」）。
+ */
+export interface Urge {
+  id: number
+  user_id: number
+  started_at: number
+  ended_at: number | null
+  outcome: UrgeOutcome | null
+  state: UrgeState | ''
+  trigger: string
+  rounds: number
+  note: string
+}
+
+/** 第 2 步一轮的时长：十分钟。 */
+export const SURF_ROUND_MS = 10 * 60 * 1000
+/** `surf_triggers` 最多保留的行数。 */
+export const SURF_TRIGGER_MAX = 8
+/** 每行触发场景最多保留的字数。 */
+export const SURF_TRIGGER_LEN = 20
+/** 「下次哪一步换成什么」输入框的字数上限。 */
+export const SURF_NOTE_LEN = 80
+
+/** 默认四条走 msg()，展示时再 t()。 */
+export const DEFAULT_SURF_TRIGGERS: readonly string[] = [
+  msg('躺床上刷手机'),
+  msg('独自在家无事'),
+  msg('屏幕上看到了什么'),
+  msg('情绪低落'),
+]
+
+/**
+ * `surf_triggers` 是用户自己敲的自由文本，永远当「可能是任何东西」处理，跟
+ * `todayGoalLimit` 对 `today_goals` 的态度一样：NULL/空/全是空行都回落默认，
+ * 而不是把一个空数组交给 `/surf` 第 0 步的 chip 列表。返回值是已经按用户
+ * 配置切好的数组——去空行、按去空格后的原文去重、截 `SURF_TRIGGER_MAX` 条、
+ * 每条再截 `SURF_TRIGGER_LEN` 字（去重在截字之前，两条只在长度上不同的输入
+ * 不会被误判成同一条）。返回的是 zh 源文（走 `msg()`）或用户自己的原文，
+ * 都不是已翻译的展示文本——展示时调用方再自己 `t()`。
+ */
+export function surfTriggers(user: Pick<User, 'surf_triggers'>): string[] {
+  const raw = user.surf_triggers
+  if (typeof raw !== 'string') return [...DEFAULT_SURF_TRIGGERS]
+
+  const seen = new Set<string>()
+  const lines: string[] = []
+  for (const rawLine of raw.split('\n')) {
+    const trimmed = rawLine.trim()
+    if (trimmed.length === 0 || seen.has(trimmed)) continue
+    seen.add(trimmed)
+    lines.push(trimmed)
+  }
+  if (lines.length === 0) return [...DEFAULT_SURF_TRIGGERS]
+  return lines.slice(0, SURF_TRIGGER_MAX).map((line) => line.slice(0, SURF_TRIGGER_LEN))
+}
