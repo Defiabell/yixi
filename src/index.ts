@@ -291,6 +291,7 @@ function robotsTxt(origin: string): Response {
     'Disallow: /review',
     'Disallow: /setup',
     'Disallow: /settings',
+    'Disallow: /surf',
     'Disallow: /account',
     'Disallow: /admin',
     'Disallow: /login',

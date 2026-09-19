@@ -16,14 +16,16 @@
 // hand-copied. A page that renders its own chrome fails this file on the day it
 // is added — and so does a page that quietly leaks the other face's tabs.
 //
-// --- two faces ---------------------------------------------------------------
+// --- three faces --------------------------------------------------------------
 //
-// The nav is now two navs: 今日 (/today, /today/goals, /today/review,
-// /today/setup) and 拦截 (/review, /settings, /setup) — all seven pages exist
-// now. So the shape-equality check runs within each face's own page set
-// rather than across all seven, and a handful of checks (which hrefs a face
-// may and may not offer, the owner's extra tab, the a.face switch link) are
-// asserted per face explicitly.
+// The nav is now three navs: 今日 (/today, /today/goals, /today/review,
+// /today/setup), 拦截 (/review, /settings, /setup) and 渡 (/surf, /surf/review,
+// /surf/setup). So the shape-equality check runs within each face's own page
+// set rather than across all of them, and a handful of checks (which hrefs a
+// face may and may not offer, the owner's extra tab, the a.face switch link)
+// are asserted per face explicitly. `/surf` itself is the one exception: the
+// ten-minute flow renders no shared header at all, by design, so it has no
+// nav to diff and is covered by its own standalone test instead.
 
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -35,6 +37,9 @@ import { handleSettings } from '../src/ui/settings'
 import { renderReview } from '../src/ui/review'
 import { renderSetup } from '../src/ui/setup'
 import { handleAccount } from '../src/ui/account'
+import { handleSurf } from '../src/ui/surf'
+import { renderSurfReview } from '../src/ui/surfreview'
+import { handleSurfSetup } from '../src/ui/surfsetup'
 import { handleAdmin } from '../src/api/admin'
 import { CONSOLE_CSS } from '../src/ui/console'
 import { breathePage } from '../src/ui/breathe'
@@ -92,8 +97,18 @@ const BREATHE_PAGES: Record<string, PageFn> = {
   account: (u) => handleAccount(new Request(`${BASE}/account`), env, u),
 }
 
-/** Every page reachable from either face's nav, for checks that don't care which face. */
-const ALL_PAGES: Record<string, PageFn> = { ...TODAY_PAGES, ...BREATHE_PAGES }
+/**
+ * The 渡 face. `/surf` itself is deliberately absent from this table: the
+ * ten-minute flow renders no shared header at all (see the standalone test
+ * below), so it has no nav to diff against its two siblings.
+ */
+const SURF_PAGES: Record<string, PageFn> = {
+  surfreview: (u) => renderSurfReview(new Request(`${BASE}/surf/review`), env, u),
+  surfsetup: (u) => handleSurfSetup(new Request(`${BASE}/surf/setup`), env, u),
+}
+
+/** Every page reachable from any face's nav, for checks that don't care which face. */
+const ALL_PAGES: Record<string, PageFn> = { ...TODAY_PAGES, ...BREATHE_PAGES, ...SURF_PAGES }
 
 async function html(pages: Record<string, PageFn>, name: string, u: User = user): Promise<string> {
   const res = await pages[name]!(u)
@@ -113,7 +128,7 @@ function shape(nav: string): string {
 
 describe('one nav a face, on every signed-in page', () => {
   it('renders byte-identical tabs within a face, marker aside', async () => {
-    for (const pages of [TODAY_PAGES, BREATHE_PAGES]) {
+    for (const pages of [TODAY_PAGES, BREATHE_PAGES, SURF_PAGES]) {
       const names = Object.keys(pages)
       const shapes = new Map<string, string>()
       for (const name of names) shapes.set(name, shape(navOf(await html(pages, name), name)))
@@ -161,6 +176,19 @@ describe('one nav a face, on every signed-in page', () => {
     }
   })
 
+  it('gives the 渡 face its three hrefs and none of the other two faces’', async () => {
+    for (const name of Object.keys(SURF_PAGES)) {
+      const nav = navOf(await html(SURF_PAGES, name), name)
+      for (const href of ['/surf', '/surf/review', '/surf/setup', '/account']) {
+        expect(nav, `${name} has no link to ${href}`).toContain(`href="${href}"`)
+      }
+      expect(nav, `${name} leaked a 今日 href`).not.toMatch(/href="\/today"/)
+      expect(nav, `${name} leaked a 拦截 href`).not.toMatch(/href="\/review"/)
+      expect(nav, `${name} leaked an admin href`).not.toMatch(/href="\/admin"/)
+      expect(nav.match(/<a /g), `${name} tab count`).toHaveLength(4)
+    }
+  })
+
   it('marks the page you are on, and only that one', async () => {
     for (const name of Object.keys(ALL_PAGES)) {
       const nav = navOf(await html(ALL_PAGES, name), name)
@@ -183,6 +211,8 @@ describe('one nav a face, on every signed-in page', () => {
       settings: '/settings',
       setup: '/setup',
       account: '/account',
+      surfreview: '/surf/review',
+      surfsetup: '/surf/setup',
     }
     for (const name of Object.keys(ALL_PAGES)) {
       const nav = navOf(await html(ALL_PAGES, name), name)
@@ -196,8 +226,6 @@ describe('one nav a face, on every signed-in page', () => {
    * Three faces now exist (今日, 拦截, 渡), so the switch beside the brand is
    * one `a.face` per face OTHER than the one you are on — two links, not
    * one — each pointing at that face's home (/today, /review or /surf).
-   * /surf itself has no pages yet (a later task adds them), so this only
-   * asserts what the 今日 and 拦截 pages offer today.
    */
   it('offers an a.face link to each of the other faces’ homes, beside the brand', async () => {
     for (const name of Object.keys(TODAY_PAGES)) {
@@ -212,6 +240,12 @@ describe('one nav a face, on every signed-in page', () => {
       expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/today">今日\s*›<\/a>/)
       expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/surf">渡\s*›<\/a>/)
     }
+    for (const name of Object.keys(SURF_PAGES)) {
+      const page = await html(SURF_PAGES, name)
+      expect(page.match(/<a class="face" /g), `${name} a.face count`).toHaveLength(2)
+      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/today">今日\s*›<\/a>/)
+      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/review">拦截\s*›<\/a>/)
+    }
   })
 
   it('gives the owner an extra 发号 tab only on the 拦截 face', async () => {
@@ -223,6 +257,11 @@ describe('one nav a face, on every signed-in page', () => {
     for (const name of Object.keys(TODAY_PAGES)) {
       const nav = navOf(await html(TODAY_PAGES, name, owner), `${name} (owner)`)
       expect(nav.match(/<a /g), `${name} owner tab count`).toHaveLength(5)
+      expect(nav, `${name} owner should have no 发号`).not.toContain('/admin')
+    }
+    for (const name of Object.keys(SURF_PAGES)) {
+      const nav = navOf(await html(SURF_PAGES, name, owner), `${name} (owner)`)
+      expect(nav.match(/<a /g), `${name} owner tab count`).toHaveLength(4)
       expect(nav, `${name} owner should have no 发号`).not.toContain('/admin')
     }
     const adminNav = navOf(await (await handleAdmin(new Request(`${BASE}/admin`), env, owner)).text(), 'admin')
@@ -241,6 +280,11 @@ describe('one nav a face, on every signed-in page', () => {
       expect(nav.match(/<svg /g), `${name} tab icons`).toHaveLength(4)
       expect(nav.match(/<span class="lb">/g), `${name} tab labels`).toHaveLength(4)
     }
+    for (const name of Object.keys(SURF_PAGES)) {
+      const nav = navOf(await html(SURF_PAGES, name), name)
+      expect(nav.match(/<svg /g), `${name} tab icons`).toHaveLength(4)
+      expect(nav.match(/<span class="lb">/g), `${name} tab labels`).toHaveLength(4)
+    }
   })
 
   it('lets no page ship a second <header> of its own', async () => {
@@ -250,6 +294,19 @@ describe('one nav a face, on every signed-in page', () => {
       // /review's private copy is gone; nobody may style the nav back down.
       expect(page.split('${')[0]).not.toMatch(/header nav\s*\{[^}]*font-size/)
     }
+  })
+
+  /**
+   * /surf — the ten-minute flow itself, as opposed to its two console
+   * siblings above — is the one signed-in page that renders NO shared
+   * header at all, by design: it is opened at the exact moment somebody is
+   * reaching for a distraction, and the nav chrome (a face switch, four
+   * tabs) has nothing to do with the five-step walkthrough. This is not an
+   * oversight the byte-identical-nav check above should ever "fix".
+   */
+  it('renders no <header> on /surf itself — the flow page owns its own chrome', async () => {
+    const page = await (await handleSurf(new Request(`${BASE}/surf`), env, user)).text()
+    expect(page.match(/<header>/g), 'the flow page must not have grown a shared header').toBeNull()
   })
 })
 

@@ -69,6 +69,9 @@
 | `GET /api/candidates` | 本人 | JSON：输入 App 名字，给出带来源的 scheme 候选。由 `/settings` 和 `/today/goals` 的 URL scheme 字段直接 fetch，不是页面 |
 | `/lookup` `/probe` | —— | 保留为 302 跳 `/settings`。两个都曾是独立页面；找 scheme 和试 scheme 现在长在需要它的那个字段上，旧链接和书签仍然能落到有用的地方 |
 | `/setup` | 本人 | 快捷指令配置向导，印着你自己的地址和 token |
+| `/surf` | 本人 | 「渡」的十分钟流程：冲动来了先辨认，放下手机等它过去，十分钟后再决定一次 |
+| `/surf/review` | 本人 | 「渡」的三十天回看：冲动次数、过去了／点开了的比例、身体状态与引子分布 |
+| `/surf/setup` | 本人 | 编辑「渡」的引子 chip，以及加主屏幕、配快捷指令的入口说明 |
 | `/account` | 本人 | 看回自己的 gate token、改密码、退出登录 |
 | `/mock?v=1\|2` | 所有人 | 两版呼吸页视觉对比 |
 | `/admin` | owner | 线下发号，看每个人的 attempt 计数 |
@@ -77,7 +80,7 @@
 
 其余一律 404。`/admin` 下面没有别的地址可以猜——见 [SECURITY.md](SECURITY.md)。
 
-两面各有一套导航——`/today` 及其背后是「今日」，呼吸页及其背后是「拦截」——彼此留一个小链接互跳，共用同一个登录。
+三面各有一套导航——`/today` 及其背后是「今日」，呼吸页及其背后是「拦截」，`/surf` 及其背后是「渡」——彼此留一个小链接互跳，共用同一个登录。
 
 ## 为什么要部署两次
 
@@ -232,7 +235,7 @@ npx wrangler d1 execute yixi --remote --command \
 | 渲染 | 服务端 HTML，CSS/JS 内联，零外部请求（CSP 强制）——唯一例外是 `/register` 上的 Turnstile widget，且仅在配置了之后 |
 | 加密 | 只用 WebCrypto —— PBKDF2-SHA256 密码，AES-GCM 封存 token |
 | 客户端 | iOS 快捷指令 + Safari |
-| 测试 | 30 个文件 709 条（Vitest + `@cloudflare/vitest-pool-workers`） |
+| 测试 | 36 个文件 820 条（Vitest + `@cloudflare/vitest-pool-workers`） |
 | 成本 | 在 Cloudflare 免费额度内 |
 
 ## 目录结构
@@ -245,6 +248,7 @@ src/account.ts      注册／登录／绑定／找回，闭环找回逻辑
 src/crypto.ts       PBKDF2 密码、AES-GCM 封存 token、随机 hex
 src/db.ts           全部 D1 语句，只有 D1 语句
 src/stats.ts        /review 的聚合层，grace_pass 的排除规则在这里
+src/urges.ts        urges 表的 D1 语句，以及 /surf/review 读取的纯聚合函数
 src/snapshot.ts      goal_days 快照：那天展示了什么、做成了什么
 src/ratelimit.ts    开放端点的每 IP 固定窗口限流
 src/turnstile.ts    /register 上那道可选的人机验证，以及它的 fail-open 规则
@@ -254,13 +258,17 @@ src/types.ts        Env、User、事件类型、共享常量
 src/dates.ts        /today 与 /today/goals 共用的 'YYYY-MM-DD' 日期运算
 src/ui/*.ts         一个页面一个模块，全部服务端渲染
 src/ui/schemefield.ts  /settings 与 /today/goals 共用的 URL scheme 选择字段
+src/ui/breathing.ts /b 与 /surf 共用的呼吸圆环——markup、CSS 与节奏参数
 src/ui/pwa.ts       主屏幕的 manifest 和图标——公开，不含任何个人数据
 src/ui/today.ts     /today —— 每天早上打开的那一页：目标、今天的子任务、七天墨点
 src/ui/goals.ts     /today/goals —— 增删改、排序、归档目标
 src/ui/progress.ts  /today/review —— 回看：三十天竖条、每个目标的打卡率
 src/ui/todaysetup.ts  /today/setup —— 主屏幕、快捷指令与定时自动打开的配置向导
+src/ui/surf.ts      /surf —— 十分钟的冲动流程，一份文档五个步骤
+src/ui/surfreview.ts  /surf/review —— 最近三十天冲动记录的回看
+src/ui/surfsetup.ts  /surf/setup —— 编辑引子 chip，以及主屏幕、快捷指令的入口说明
 src/api/admin.ts    owner 的发号台，以及那条隐私红线
-migrations/*.sql    D1 schema，六个 migration
+migrations/*.sql    D1 schema，十个 migration
 scripts/icon.mjs    重新生成 src/ui/pwa.ts 里那份 base64 PNG
 pages/              Pages 入口（一行）加它自己的 wrangler.toml
 shortcut/README.md  快捷指令为什么长这样
@@ -298,7 +306,7 @@ npm run deploy         # 远端 apply migration，然后部署 Worker
 
 ## 说人话
 
-给自己做一个「刷手机之前先喘口气」的小工具，顺手又加了一页「今天最重要的三件事」。你一点小红书，手机先跳到一个网页让你看着圆圈呼吸十秒，十秒后你可以继续进去，也可以放弃；它会偷偷记账，过一阵你能看到自己一周被拦了多少次、其中多少次忍住了。另一半反过来：每天早上打开一页，上面是你这阵子最重要的三件事，每件事按一下就直接跳进要用的那个 App。做成网页而不是 App，是因为往 iPhone 上装自制 App 每周都要重装一次，太麻烦，还得花钱。
+给自己做一个「刷手机之前先喘口气」的小工具，顺手又加了一页「今天最重要的三件事」。你一点小红书，手机先跳到一个网页让你看着圆圈呼吸十秒，十秒后你可以继续进去，也可以放弃；它会偷偷记账，过一阵你能看到自己一周被拦了多少次、其中多少次忍住了。另一半反过来：每天早上打开一页，上面是你这阵子最重要的三件事，每件事按一下就直接跳进要用的那个 App。第三张脸「渡」：冲动来了点一下，它带你过十分钟。做成网页而不是 App，是因为往 iPhone 上装自制 App 每周都要重装一次，太麻烦，还得花钱。
 
 ## License
 
