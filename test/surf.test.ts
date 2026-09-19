@@ -21,6 +21,8 @@ const user: User = { id: 1, name: '张三', is_owner: 0, created_at: 0 }
 const other: User = { id: 2, name: '李四', is_owner: 0, created_at: 0 }
 const NOW = Date.now()
 const TODAY = shanghaiDate(NOW)
+const IPHONE_SAFARI =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'
 
 async function reset(): Promise<void> {
   await env.DB.batch([env.DB.prepare('DELETE FROM urges'), env.DB.prepare('DELETE FROM users')])
@@ -66,6 +68,44 @@ function scriptOf(h: string): string {
 }
 function stripComments(js: string): string {
   return js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+}
+/**
+ * The `{ … }` block starting at the first brace at or after `from`, brace
+ * matched. Good enough for this script, which has no brace inside any string
+ * literal; it throws loudly rather than returning something plausible if that
+ * ever stops being true.
+ */
+function blockAfter(src: string, from: number): string {
+  const open = src.indexOf('{', from)
+  expect(open, 'no block here').toBeGreaterThan(-1)
+  let depth = 0
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth++
+    else if (src[i] === '}') {
+      depth--
+      if (depth === 0) return src.slice(open + 1, i)
+    }
+  }
+  throw new Error('unbalanced braces in the page script')
+}
+/** The body of one top-level `function name(...)` in the page script. */
+function fnBody(js: string, name: string): string {
+  const at = js.indexOf(`function ${name}(`)
+  expect(at, `function ${name}() missing from the page script`).toBeGreaterThan(-1)
+  return blockAfter(js, at)
+}
+/**
+ * Every element id the script reaches for. The script dereferences most of
+ * these at load with no guard, so an id renamed in the markup alone would
+ * freeze the page on step 0 — and there is no DOM in workerd to catch it.
+ */
+function idsReachedFor(js: string): string[] {
+  const out = new Set<string>()
+  for (const m of js.matchAll(/getElementById\((['"])([A-Za-z][-\w]*)\1\)/g)) out.add(m[2]!)
+  for (const m of js.matchAll(/(?:querySelector|querySelectorAll|closest)\((['"])#([A-Za-z][-\w]*)\1\)/g)) {
+    out.add(m[2]!)
+  }
+  return [...out]
 }
 function mainOf(h: string): string {
   const m = h.match(/<main[\s\S]*?<\/main>/)
@@ -343,9 +383,59 @@ describe('the page script', () => {
     const h = await html()
     const code = stripComments(scriptOf(h))
     expect(code).toMatch(/setTimeout\([^)]*?,\s*800\)/)
-    // 还想 is server-rendered hidden; the delay is what reveals it.
+    // The asymmetry is the feature (CONTRIBUTING: do not balance these
+    // buttons). Both halves of it are server-rendered state, not script: 还想
+    // and the two links behind it start hidden, 过去了 never is.
     expect(h).toMatch(/id="still"[^>]*hidden/)
+    expect(h).toMatch(/id="more"[^>]*hidden/)
     expect(h).not.toMatch(/id="passed"[^>]*hidden/)
+    // The same mechanism holds the optional question and the offline notice.
+    expect(h).toMatch(/id="noteWrap"[^>]*hidden/)
+    expect(h).toMatch(/id="lost"[^>]*hidden/)
+  })
+
+  it('drops the pending reveal whenever the flow leaves step 3', () => {
+    // Otherwise the 800ms timer fires into step 4 and un-hides 还想 behind a
+    // section nobody is looking at, and the next round through step 3 starts
+    // with both halves already showing.
+    const go = fnBody(js, 'go')
+    expect(go).toContain('clearTimeout(pending)')
+    expect(go).toMatch(/n!==3/)
+  })
+
+  it('paints today dot only when the record actually landed', () => {
+    // With no id the start POST never reached us, so there is no row: a dot
+    // painted here would disappear on the next reload, right next to the line
+    // that says nothing was recorded.
+    const finish = fnBody(js, 'finish')
+    expect(finish.split('bumpToday(').length - 1, 'bumpToday called more than once').toBe(1)
+    const guard = finish.indexOf('urgeId===null')
+    expect(guard, 'finish() no longer branches on a missing id').toBeGreaterThan(-1)
+    // The `else` of that guard — i.e. the branch that runs only with an id.
+    const recorded = blockAfter(finish, finish.indexOf('else', guard))
+    expect(recorded).toContain('bumpToday(')
+    expect(recorded).toContain("op:'finish'")
+    // And the other branch says so instead of drawing anything.
+    expect(blockAfter(finish, guard)).toContain('lost.hidden=false')
+  })
+
+  it('only reaches for ids the page actually renders', async () => {
+    // The script dereferences #cfg, #ring, #phase and the rest at load with no
+    // guard: rename one in the markup and the page freezes on step 0 with this
+    // suite green. workerd has no DOM to catch that, so the contract is
+    // checked as text. The iPhone render is the maximal page — it is the only
+    // one that carries the a2hs banner.
+    const h = await html(user, { 'user-agent': IPHONE_SAFARI })
+    const code = stripComments(scriptOf(h))
+    const ids = idsReachedFor(code)
+    // A sanity floor: if the extraction ever stops matching, this test must
+    // fail rather than quietly assert nothing.
+    expect(ids.length).toBeGreaterThanOrEqual(10)
+    expect(ids).toContain('cfg')
+    expect(ids).toContain('ring')
+    for (const id of ids) {
+      expect(h, `the script reads #${id}, and the page renders no such id`).toContain(`id="${id}"`)
+    }
   })
 })
 

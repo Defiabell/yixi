@@ -882,11 +882,15 @@ export const EN: Record<string, string> = {
   还想: 'Still there',
   再来十分钟: 'Another ten minutes',
   我点开了: 'I opened it',
-  // The five parting lines, in the order farewellLines() returns them.
+  // Four of the five parting lines, in the order farewellLines() returns
+  // them. The fifth, 「放下就好。」, is the breathing page's own and already
+  // has an entry further up.
   '就到这里。': 'This is where it ends.',
   '这一阵过去了。': 'That wave has gone by.',
   '你看着它，它就小了。': 'You watched it, and it got smaller.',
   '记下了。明天还是新的一天。': 'Noted. Tomorrow is a new day all the same.',
+  // Not a parting line: the quiet notice when the start POST never landed and
+  // this walk-through left no row behind.
   '这一次没记上。': 'This one was not recorded.',
   '下次哪一步换成什么？': 'Which step would you change next time?',
   不写了: 'Skip it',

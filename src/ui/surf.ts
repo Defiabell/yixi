@@ -502,6 +502,10 @@ var urgeId=null,state=null,trigger=null,settled=false;
 var t0=0,running=false,lastWord='',lastTip=-1,pending=0;
 
 function go(n){
+  // The 800ms reveal belongs to step 3 alone. Left running, it un-hides
+  // 「还想」 behind a section nobody is looking at any more, and the next
+  // pass through step 3 would then start with both halves already showing.
+  if(n!==3&&pending){clearTimeout(pending);pending=0}
   doc.setAttribute('data-step',String(n));
   if(n===2)startRing();
   if(n===3)reveal();
@@ -586,11 +590,17 @@ function bumpToday(outcome){
 function finish(outcome){
   if(settled)return;
   settled=true;running=false;
-  if(urgeId!==null)report({op:'finish',id:String(urgeId),outcome:outcome});
   fin.textContent=pick();
-  if(urgeId===null)lost.hidden=false;
+  if(urgeId===null){
+    // No id means the start POST never landed, so there is no row and nothing
+    // to draw: a dot painted here would vanish on the next reload, which reads
+    // as the page losing the walk-through a second time.
+    lost.hidden=false;
+  }else{
+    report({op:'finish',id:String(urgeId),outcome:outcome});
+    bumpToday(outcome);
+  }
   if(outcome==='opened')noteWrap.hidden=false;
-  bumpToday(outcome);
   go(4);
 }
 
