@@ -9,7 +9,8 @@ import { handleToday } from './ui/today'
 import { handleGoals } from './ui/goals'
 import { renderTodaySetup } from './ui/todaysetup'
 import { renderProgress } from './ui/progress'
-import { iconResponse, manifestResponse } from './ui/pwa'
+import { handleSurf } from './ui/surf'
+import { iconResponse, manifestResponse, surfIconResponse, surfManifestResponse } from './ui/pwa'
 import { handleCandidates } from './api/candidates'
 import {
   handleAccount,
@@ -123,6 +124,11 @@ export default {
       // cookie when the icon is added, and nothing in them is per-user.
       if (path === '/manifest.webmanifest' && method === 'GET') return manifestResponse()
       if (path === '/icon.png' && method === 'GET') return iconResponse()
+      // 「渡」 installs as its own home-screen app, so it has its own pair. A
+      // second `<link rel=manifest>` is what makes iOS create a second app
+      // rather than a shortcut into the one already installed for /today.
+      if (path === '/surf/manifest.webmanifest' && method === 'GET') return surfManifestResponse()
+      if (path === '/surf/icon.png' && method === 'GET') return surfIconResponse()
 
       // Sign-up and sign-in must answer before authenticate(), or the only way
       // to get an account would be to already have one. Registration being open
@@ -163,6 +169,7 @@ export default {
 
       let res: Response
       if (path === '/today') res = await handleToday(request, env, user)
+      else if (path === '/surf') res = await handleSurf(request, env, user)
       else if (path === '/today/goals') res = await handleGoals(request, env, user)
       else if (path === '/today/setup' && method === 'GET') res = await renderTodaySetup(request, env, user)
       else if (path === '/today/review' && method === 'GET') res = await renderProgress(request, env, user)

@@ -858,6 +858,41 @@ export const EN: Record<string, string> = {
   "来源与核对日期": "Sources and review date",
   "一息源码与功能说明": "Yixi source and feature documentation",
 
+  // --- /surf, the ten-minute flow (src/ui/surf.ts) ---------------------------
+  // The voice of the whole face: no praise, no lecture, nothing red, and
+  // 「我点开了」 reads exactly as level as 「过去了」 does.
+  '渡 · 一息': 'Surf · 一息',
+  '冲动来了。': 'An urge came.',
+  '此刻，身体是哪一种？': 'Right now, which one is the body?',
+  饿: 'Hungry',
+  烦: 'On edge',
+  孤独: 'Lonely',
+  累: 'Tired',
+  都不是: 'None of these',
+  '是什么把它引来的？': 'What brought it here?',
+  其他: 'Something else',
+  '放下手机，去另一个房间。': 'Put the phone down and go to another room.',
+  '回来再点。': 'Tap again when you are back.',
+  我起来了: 'I am up',
+  '二十个深蹲。': 'Twenty squats.',
+  '冷水洗脸。': 'Cold water on your face.',
+  '出门走五分钟。': 'Five minutes outside.',
+  '十分钟了。': 'Ten minutes.',
+  过去了: 'It passed',
+  还想: 'Still there',
+  再来十分钟: 'Another ten minutes',
+  我点开了: 'I opened it',
+  // The five parting lines, in the order farewellLines() returns them.
+  '就到这里。': 'This is where it ends.',
+  '这一阵过去了。': 'That wave has gone by.',
+  '你看着它，它就小了。': 'You watched it, and it got smaller.',
+  '记下了。明天还是新的一天。': 'Noted. Tomorrow is a new day all the same.',
+  '这一次没记上。': 'This one was not recorded.',
+  '下次哪一步换成什么？': 'Which step would you change next time?',
+  不写了: 'Skip it',
+  再来一次: 'Again',
+  '添加到主屏幕，下次一步就到。': 'Add it to the home screen, and next time it is one tap.',
+
   // --- /surf default triggers (src/types.ts, msg()) -------------------------
   "躺床上刷手机": "Lying in bed scrolling",
   "独自在家无事": "Alone at home with nothing to do",
