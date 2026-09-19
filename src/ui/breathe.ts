@@ -10,6 +10,7 @@ import {
 } from './layout'
 import { localeOf, translator, type Locale, type T } from '../i18n'
 import { safeScheme } from '../scheme'
+import { EXHALE_MS, INHALE_MS, ORB_CSS, orbHtml } from './breathing'
 
 /**
  * The breathing page — the only screen this product really has.
@@ -25,10 +26,6 @@ import { safeScheme } from '../scheme'
  *     as a quiet underlined link. Abandoning is meant to be the path of least
  *     resistance. This asymmetry IS the feature — do not "balance" the buttons.
  */
-
-/** Inhale 4s, exhale 6s. The longer exhale is what actually settles you. */
-const INHALE_MS = 4000
-const EXHALE_MS = 6000
 
 const MAX_WAIT_SECONDS = 300
 
@@ -177,17 +174,7 @@ function breatheBody(v: BreatheView, t: T): string {
   return `<main class="stage">
 <p class="prelude">${t('你正要打开<b>{label}</b>', { label })}</p>
 
-<div class="orbwrap">
-  <div class="orb" role="img" aria-label="${t('呼吸引导')}">
-    <div class="ink" aria-hidden="true"><i class="l1"></i><i class="l2"></i><i class="l3"></i></div>
-    <div class="dot" aria-hidden="true"></div>
-    <svg class="ring" viewBox="0 0 240 240" aria-hidden="true" focusable="false">
-      <circle class="tr" cx="120" cy="120" r="112"></circle>
-      <circle class="pg" id="ring" cx="120" cy="120" r="112"></circle>
-    </svg>
-  </div>
-  <p class="phase" id="phase" aria-hidden="true">${t('吸气')}</p>
-</div>
+${orbHtml(t)}
 
 <div class="actions">
   <button type="button" class="stop" id="stop" hidden>${t('算了')}</button>
@@ -244,47 +231,7 @@ const BREATHE_CSS = `
 .prelude{margin:0;font-size:.9rem;color:var(--faint);letter-spacing:.16em;text-indent:.16em}
 .prelude b{font-weight:inherit;color:var(--dim)}
 
-.orbwrap{display:flex;flex-direction:column;align-items:center}
-.orb{position:relative;width:min(64vw,268px);height:min(64vw,268px);display:grid;place-items:center}
-
-.ring{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
-.ring circle{fill:none;stroke-width:1.3;stroke-linecap:round}
-.ring .tr{stroke:var(--ring-track)}
-.ring .pg{stroke:var(--ring-prog)}
-
-/* v1 「墨」 — three offset washes drifting on slow coprime cycles inside one
-   mass that scales with the breath, so the silhouette never quite repeats. */
-.ink{
-  position:absolute;width:100%;height:100%;
-  transform:scale(calc(.60 + .40*var(--level)));
-  opacity:calc(.50 + .50*var(--level));
-  will-change:transform,opacity;
-}
-.ink i{position:absolute;display:block;border-radius:50%;filter:blur(var(--ink-blur))}
-.ink .l1{left:6%;top:8%;width:86%;height:84%;
-  background:radial-gradient(circle at 47% 45%,var(--ink-a) 0%,var(--ink-b) 44%,transparent 68%);
-  animation:d1 41s ease-in-out infinite}
-.ink .l2{left:14%;top:3%;width:72%;height:78%;opacity:.74;
-  background:radial-gradient(circle at 58% 60%,var(--ink-a) 0%,var(--ink-b) 38%,transparent 63%);
-  animation:d2 59s ease-in-out infinite}
-.ink .l3{left:1%;top:17%;width:80%;height:73%;opacity:.9;
-  background:radial-gradient(circle at 40% 56%,var(--ink-b) 0%,transparent 64%);
-  animation:d3 73s ease-in-out infinite}
-@keyframes d1{0%{transform:translate(0,0) rotate(0deg) scale(1)}50%{transform:translate(2.5%,-3%) rotate(180deg) scale(1.09)}100%{transform:translate(0,0) rotate(360deg) scale(1)}}
-@keyframes d2{0%{transform:translate(0,0) rotate(0deg) scale(1.04)}50%{transform:translate(-3%,3%) rotate(-180deg) scale(.94)}100%{transform:translate(0,0) rotate(-360deg) scale(1.04)}}
-@keyframes d3{0%{transform:translate(0,0) rotate(0deg) scale(.96)}50%{transform:translate(3%,3.5%) rotate(150deg) scale(1.07)}100%{transform:translate(0,0) rotate(300deg) scale(.96)}}
-
-/* v2 「息」 — one dot. Nothing else. */
-.dot{
-  position:absolute;width:22%;height:22%;border-radius:50%;background:var(--dot);
-  transform:scale(calc(.44 + .56*var(--level)));
-  opacity:calc(.60 + .40*var(--level));
-  will-change:transform,opacity;
-}
-body.t-breath .ink{display:none}
-body.t-ink .dot{display:none}
-
-.phase{margin:2.6rem 0 0;font-size:.95rem;color:var(--dim);letter-spacing:.5em;text-indent:.5em}
+${ORB_CSS}
 
 /* Height is reserved from the first paint so nothing jumps when the buttons
    arrive; during the wait the area is merely invisible, not absent. */

@@ -9,8 +9,14 @@
 // The icon is a base64 constant, generated once by scripts/icon.mjs. It is the
 // only binary in the codebase; keeping it inline is what keeps "zero external
 // requests, zero runtime dependencies" true for the home-screen path too.
+//
+// 「渡」 (the urge-surfing flow at /surf) gets its own manifest and icon below
+// rather than reusing these: a second `<link rel=manifest>` is what makes iOS
+// "add to home screen" create a second, independent app instead of a
+// shortcut into the one already installed for /today.
 
 const PAPER = '#f3f0e8'
+const INK = '#1f1c18'
 
 /** Six lines every page carries. layout.ts inlines this into <head>. */
 export const PWA_HEAD = `<link rel="manifest" href="/manifest.webmanifest">
@@ -18,6 +24,14 @@ export const PWA_HEAD = `<link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="一息">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">`
+
+/** The same six lines, pointed at 「渡」's own manifest and icon. */
+export const SURF_PWA_HEAD = `<link rel="manifest" href="/surf/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/surf/icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="渡">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">`
 
 const MANIFEST = JSON.stringify({
@@ -33,10 +47,31 @@ const MANIFEST = JSON.stringify({
   icons: [{ src: '/icon.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }],
 })
 
+/** 「渡」's manifest: its own app, independent of 一息's. */
+const SURF_MANIFEST = JSON.stringify({
+  name: '渡',
+  short_name: '渡',
+  // Straight into the flow — a list page here would cost the one thing this
+  // face is built to save: the seconds between the urge and the tap.
+  start_url: '/surf',
+  scope: '/',
+  display: 'standalone',
+  background_color: INK,
+  theme_color: INK,
+  lang: 'zh-Hans',
+  icons: [{ src: '/surf/icon.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }],
+})
+
 const DAY = 'public, max-age=86400'
 
 export function manifestResponse(): Response {
   return new Response(MANIFEST, {
+    headers: { 'content-type': 'application/manifest+json; charset=utf-8', 'cache-control': DAY },
+  })
+}
+
+export function surfManifestResponse(): Response {
+  return new Response(SURF_MANIFEST, {
     headers: { 'content-type': 'application/manifest+json; charset=utf-8', 'cache-control': DAY },
   })
 }
@@ -56,4 +91,21 @@ function icon(): Uint8Array {
 
 export function iconResponse(): Response {
   return new Response(icon(), { headers: { 'content-type': 'image/png', 'cache-control': DAY } })
+}
+
+/** Output of `node scripts/icon.mjs --surf`. Regenerate there; never hand-edit. */
+const SURF_ICON_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAIAAAB7GkOtAAAMkElEQVR42u3dPWsbSRzA4XyMKw6ucmFwpUagJk0gjRqBGjcGN6oEKlQJVKgSqFAlUOHOYEgXMLgLBNIFAi4NJmUgXHlwX+D+sEcuR4Jjvaw0s/PAUyZ+kXfnJ83O7L744/ffACjQCy8BgAAAIAAACAAAAgCAAAAgAAAIAAACAIAAACAAAAgAAAIAgAAAIAAACAAAAgCAAAAgAAAIAAACAIAAACAAAAgAgAAAIAAACAAAAgCAAAAgAAAIAAACAIAAACAAAAgAAAIAgAAAIAAACAAAAgCAAAAgAAAIAAACAIAAACAAAAgAgAB4FQAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAEwKsAIAAACAAAAgCAAAAgAAAIAAACAIAAACAAAAgAAAIAgAAAIAAACAAAAgCAAAAgAAAIAAACAIAAACAAAAgAAAIAIAAACAAAAgCAAAAgAAAIAAACAIAAACAAAAgAAAIAgAAAIAAACAAAAgCAAAAgAAAIAAACAIAAULaz05N+rxtGw8FiPqvcvn3z/t3dE+IffPvH8R+rrxBfyuuJAECKOu1WDNMxZK9XyxjEHx/u//7rz72LLxtfPL5FfKP4dvFNvfIIABza61cv4+15NdzXMdY/X5WE+GHiR/J3QQCgFtV7/KOP+L/sQfX5wN8LAYBd3+lPJ+PEB/0nYhA/vE8GCABs4PLi/Ob6qqap/MOLXyR+nfil/GURAHhq3P/65XMzxv0fxa+mBAgA/G+eZ71aNnjc/2kJ4lc2O4QAUO46/elk/Onjh3LG/R/Frx8vgn0GCAAFveVv9lTPdlNDPhAgADR8lj/TJT0HWzjkCgECQNOMhoPGrOo5wKqheLkcMwgAhn4ZAAHA0C8DIACkP9dv6N9vBlwbQABIXb/XdZm3vkvE7jKEAJDouv6b6yvDdN3iRbZvAAEgIdPJ2Lr+Q+4biBfcUYcAcPxdXYXv5j3iLmJ7xxAAjmYxnxmIjyv+BI5DBABv/H0UAAHAG38fBUAA2K9Ou+WNf8ofBTyqHgGgru1dlvqkv0DIljEEgD1br5aG11zEH8sRiwCwnx1epn1ynA6yXwwBYNfVPqZ98p0OsjoIAWBLo+HAMJo7NxNFADDp75IACADP4LZuzbuFnKMaAcAlX5eFQQAw+msAAgBGfw1AALDcE8tDEQCM/mgAAoDRHw1AAGjavL/Rv+QGuB4gAF4FV31xTRgBwOiPBiAANJvRn+8b4IwQANzpAfeKQABoLnd5wz3jEIASucMz7h2NABS65N8Yx9NsDhAALPnH5gAEAMt+sCgIAcCFX1wQRgDIyeXFuRGNTcVh49wRAPLWabdM/bPdxYA4eJxBAoCpf1wMQADIymI+M4qxiziEnEcCgFX/2BmAAGDyBxNBCAAmfzARhABg8gcTQQgAJn8wEYQAcHjTydhoRR3i0HJ+CQDpcsc33CcOASiUR33hwWEIQIn6va4RirrFYeZcEwCS8/7dneGJusVh5lwTANLilp+4USgCUKjHh3sDE4cRB5szTgBIhUe9c2AeHy8AePuPDwEIAN7+40MAAoC3//gQgADg7T8+BCAAePuPDwEIANb+Y08AAoCtv9gYjACwIU99wbNiEIBCufEnbhGKAJTIff/xnAAEoFAe+4WHhSEAhfLUX5LiicECgMu/uBSMAFCn9WppuCE1cVg6NwWA2rn8S5qXgp2bAoDdv9gVjABg+T82BCAAmP/BLBACgPkfzAIhAJj/wSwQAsBzuPs/nhCAANj/BXaEIQDu/wPuC4QANJvHv+ARMQhAoYws5MLZKgDsU7/XNayQizhcnbMCwN4s5jPDCrmIw9U5KwC4AIDLAAgALgDgMgACgB0A2A2AAPAso+HAgEJe4qB15goAe+ARYHhAGALgCjC4DowAuAIMrgMjAM3WabcMJeQoDl3nrwBgDzD2AyMA2AOM/cAIAJYAYSEQAoAlQFgIhADwA4+BJFMeDykAWAOKlaAIAJs7Oz0xiJCvOICdxQKANaBYCYoAIAAIAAKA+4DinqAIAHaBYS8YAoAAIAAIAAKAACAAhbp9+8YgQr7iAHYWCwDuA4G7QSAACAACgAAgAAgAAoAAIAAIAAKAACAACAACgAAIAAgAAiAAIAAIgACAACAAAgACgAC4FQS4FQQC4GZw4GZwCIAAgAAgAAIAAoAAJM4jIcmaR0IKANvzUHiy5qHwAoAAIAAIABs6Oz0xiJCvOICdxQLA9gwi5Mv5KwDs5PHh3jhCjuLQdf4KAO4GgftAIABsbr1aGkrIURy6zl8BwF4w7AJDALASFGtAEQCeqdNuGUrIURy6zl8BwEpQrAFFALAQCEuAEAAsBMISIAQA9wTFfUARAH7m9auXBhTyEgetM1cAcB0YV4ARAFwHxhVgBAD7gbEHGAHAfmDsAUYAcBkAFwAQAFwGwAUABIB/TSdjgwvpiwPV2SoA2A2AHQAIAHvi8ZAkzmMgBYC63FxfGWJIWRyizlMBoBaXF+eGGFIWh6jzVACoy9cvn40ypCkOTmeoAGAWCPM/CABmgTD/gwBgFgjzPwgAO/GAMDwCDAGwIwzs/0IACvPp4wcjDumIA9JZKQC4LxDu/4MAUKez0xOXgknn8m8ckM5KAcCGACz/RwBwKRiXfxEAauIRMXj8CwJgVzDY/YsAFMYTAnD3fwSgUKPhwDDEscTh5xwUAHwIwNt/BAAfAvD2HwHAhwC8/UcA8CEAb/8RAHwIwNt/BAB7ArD2HwHAxmBs/UUA2Fa/1zU8Ubc4zJxrAkCK3CIUN/5EAArlOQG47z8CUC4PC8NjvxCAcnliMHvnqb8CQB48KwZPfUEAyrWYz4xZ7EscTs4pAcBEECZ/EABMBGHyBwHARBAmfxAATARh8gcBIA2ddsvWMLbb9hUHjzNIAMibG4Xilp8IQLnWq6URjeeLA8ZZIwC4GICpfwSAzLlPHO74hgDYGQBW/SMA5fH4eDzqHQFwQRhc+BUAr0J5PDgMj/pCACwKAst+BIDyFgVpANXob9mPAKABGP0RAGwOwJJ/BIASNgdoQJmjvyX/CAAaYPRHANAAg6PRHwHANWFc9UUA0ACM/ggAGoDRHwHAvSJwpwcEgGZyzzh3eUMAKJd7R7vDMwKA5aFGUss9EQBcFsYlXwQAlwQw6Y8AUITLi3PTQelP+8SfybGKALB/nXbLdFDK0z7xB3KUIgDUaDGfGW1TE38URyYCwIFWB/kokM4bf6t9EAB8FPDGHwQAHwW88QcB4ACmk7EFQodc6hMvuKMOASCh/WJuIXeY27rZ4YUAkKJ+r/v+3Z1hug7xwsbL6xhDAEh9y9jjw70he1/ixbS9CwEgJ6PhQAZ2H/rdzhMBQAYM/SAAyIChHwSA7K4NuET89GVec/0IAA3fO3ZzfWXfwPfr+uMFsasLAaCgfQPTybjwXcTx68eLYF0/AkC5HwjWq2VRHwjil41f2Vt+BAD+u0LQ7KmhaqrHLD8CAL8oQWNWDcUvYtxHAGDj2aHpZJzpwqH4seOHN8+DAMCu+r3uYj5LPAbx48UP6Y49CADU+MlgNBysV8uj9yB+gPgx4ofxTh8BgCPotFvV54MqCTVdPIgvWw331Xt8j19HACDdfQYxTId4ex5DduX27ZsYxJ8Q/+DbP47/WH0F6/QRAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABABAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABABAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABABAALwEAGX6ByifTsUaoPi6AAAAAElFTkSuQmCC'
+
+let surfIconBytes: Uint8Array | null = null
+function surfIcon(): Uint8Array {
+  if (surfIconBytes) return surfIconBytes
+  const bin = atob(SURF_ICON_PNG_BASE64)
+  const out = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+  surfIconBytes = out
+  return out
+}
+
+export function surfIconResponse(): Response {
+  return new Response(surfIcon(), { headers: { 'content-type': 'image/png', 'cache-control': DAY } })
 }

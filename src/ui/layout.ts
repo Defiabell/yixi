@@ -290,6 +290,14 @@ export interface PageOptions {
    * and hand it the ranking.
    */
   canonical?: string
+  /**
+   * The manifest/touch-icon/app-title block inlined into `<head>`. Defaults
+   * to `PWA_HEAD` — every existing caller keeps pointing at 一息's own
+   * manifest and icon. `/surf`'s pages pass `SURF_PWA_HEAD` so "add to
+   * home screen" there creates a second, independent icon rather than a
+   * shortcut into the same installed app.
+   */
+  pwaHead?: string
 }
 
 /**
@@ -326,7 +334,7 @@ export function pageHtml(o: PageOptions): string {
 <meta name="theme-color" media="(prefers-color-scheme:light)" content="${skin.barLight}">
 <meta name="theme-color" media="(prefers-color-scheme:dark)" content="${skin.barDark}">
 ${o.indexable ? '' : '<meta name="robots" content="noindex,nofollow">\n'}<link rel="icon" href="data:,">
-${PWA_HEAD}
+${o.pwaHead ?? PWA_HEAD}
 <title>${escapeHtml(o.title)}</title>${socialTags(o)}
 <style>${skin.tokens}${BASE_CSS}${o.css ?? ''}</style>${o.turnstile ? '\n' + TURNSTILE_LOADER : ''}
 </head>

@@ -1,8 +1,9 @@
 import { env } from 'cloudflare:test'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { renderBreathe, safeScheme } from '../src/ui/breathe'
+import { expiredPage, renderBreathe, safeScheme } from '../src/ui/breathe'
 import { renderMock } from '../src/ui/mock'
 import { renderLanding } from '../src/ui/landing'
+import { DEFAULT_THEME } from '../src/ui/layout'
 import { SESSION_TTL_MS } from '../src/types'
 
 /**
@@ -84,6 +85,48 @@ function scriptOf(html: string): string {
 function codeOnly(js: string): string {
   return js.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
 }
+
+/** A session row with a fixed sid, bypassing nextSid()'s randomness — the
+ * byte-identity guard below needs every input to be deterministic, since the
+ * sid itself ends up in the rendered config island and (via pickFarewell)
+ * picks which farewell line is shown. */
+async function seedFixedSession(sid: string, app: string): Promise<void> {
+  await env.DB.prepare(
+    'INSERT INTO sessions (sid, user_id, app, created_at, resolved_at) VALUES (?1, ?2, ?3, ?4, NULL)',
+  )
+    .bind(sid, userId, app, Date.now())
+    .run()
+}
+
+/** SHA-256 hex digest — Web Crypto is available in workerd. */
+async function sha256(s: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Pins the exact bytes /b and expiredPage() emit, hashed with SHA-256. The
+ * hex constants below were captured against breathe.ts before the orb
+ * markup and its CSS moved out to src/ui/breathing.ts (orbHtml()/ORB_CSS);
+ * this test must keep passing, unchanged, after that extraction. A refactor
+ * that reorders a CSS rule, drops a newline, or changes an attribute is
+ * exactly the kind of change every other assertion in this file (all
+ * substring/regex checks) would miss — this is the one guard that cannot.
+ */
+describe('breathing extraction is byte-identical', () => {
+  it('/b renders the same bytes as before the orb moved to breathing.ts', async () => {
+    await seedApp('hashguard', '守卫应用', 'guardscheme://', 12)
+    const sid = 'sid-hash-guard-fixed'
+    await seedFixedSession(sid, 'hashguard')
+    const html = await (await renderBreathe(get('/b?s=' + sid), env)).text()
+    expect(await sha256(html)).toBe('4be79047af5bded7c6c498c49fbe4367cb56bc9f8b6f76bf0fa05208b990f750')
+  })
+
+  it('expiredPage() renders the same bytes as before the orb moved to breathing.ts', async () => {
+    const html = await expiredPage(DEFAULT_THEME, 'zh', 410).text()
+    expect(await sha256(html)).toBe('b37f135e829094c3c5ad93a2da15be75a6679970e7da4e97090e7753892e0999')
+  })
+})
 
 describe('/b renders the wait', () => {
   it('shows the app, the breath and a ring', async () => {
