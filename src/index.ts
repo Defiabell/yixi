@@ -14,6 +14,7 @@ import { renderSurfReview } from './ui/surfreview'
 import { handleSurfSetup } from './ui/surfsetup'
 import { iconResponse, manifestResponse, surfIconResponse, surfManifestResponse } from './ui/pwa'
 import { handleCandidates } from './api/candidates'
+import { faceCookie, faceForPath } from './ui/console'
 import {
   handleAccount,
   handleClaim,
@@ -203,6 +204,12 @@ export default {
       else if (path.startsWith('/admin')) res = await handleAdmin(request, env, user)
       else return notFound()
 
+      // Which face this visit belongs to, if any — /account and /admin are of
+      // no face (see console.ts's module header) and so leave the cookie
+      // alone, which is exactly what lets them borrow whichever face was last
+      // remembered instead of always falling back to 拦截.
+      const face = faceForPath(path)
+
       // First visit arrived with ?k=<token>. Set the cookie and bounce to the
       // same path without it, rather than rendering the page at a URL that has
       // the user's whole identity in it — that URL is one screenshot, one shared
@@ -211,15 +218,18 @@ export default {
       if (seededFromToken) {
         const clean = new URL(url)
         clean.searchParams.delete('k')
-        return new Response(null, {
-          status: 303,
-          headers: {
-            location: clean.pathname + (clean.search || ''),
-            'set-cookie': await issueCookie(env, user),
-            'cache-control': 'no-store',
-          },
+        const headers = new Headers({
+          location: clean.pathname + (clean.search || ''),
+          'cache-control': 'no-store',
         })
+        // Two independent cookies, appended rather than assigned: a second
+        // `set-cookie` key on the same header object would silently clobber
+        // the first, and this seeding path already needs one for the session.
+        headers.append('set-cookie', await issueCookie(env, user))
+        if (face) headers.append('set-cookie', faceCookie(face))
+        return new Response(null, { status: 303, headers })
       }
+      if (face) res.headers.append('set-cookie', faceCookie(face))
       return res
     } catch (err) {
       console.error('unhandled', redact(err))

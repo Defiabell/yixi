@@ -46,7 +46,7 @@ import {
 import { sessionIdFrom } from '../auth'
 import { shanghaiDate } from '../db'
 import { TURNSTILE_FIELD, turnstileKeys, verifyTurnstile } from '../turnstile'
-import { CONSOLE_CSS, consoleHeader } from './console'
+import { CONSOLE_CSS, consoleHeader, faceFromRequest, type Face } from './console'
 import { localeOf, msg, translator, type Locale, type T } from '../i18n'
 import { DEFAULT_THEME, escapeHtml, jsonForScript, langSwitch, page } from './layout'
 
@@ -418,12 +418,17 @@ export async function handleAccount(request: Request, env: Env, user: User): Pro
   // — it is where that language was chosen.
   const loc = localeOf(request, user)
   const t = translator(loc)
+  // /account is of no face (see console.ts's module header), so its own header
+  // borrows whichever face the reader was last on rather than always falling
+  // back to 拦截 — the bug this cookie exists to fix.
+  const face = faceFromRequest(request) ?? undefined
 
   if (request.method === 'GET') {
     const q = new URL(request.url).searchParams
     return await accountPage(env, user, {
       loc,
       t,
+      face,
       reveal: q.get('show') === '1',
       welcome: q.has('new') ? 'new' : q.has('claimed') ? 'claimed' : q.has('reset') ? 'reset' : q.has('saved') ? 'saved' : null,
     })
@@ -431,7 +436,7 @@ export async function handleAccount(request: Request, env: Env, user: User): Pro
   if (request.method !== 'POST') return methodNotAllowed()
 
   const form = await readForm(request)
-  if (!form) return await accountPage(env, user, { loc, t, error: t(FORM_UNREADABLE), status: 400 })
+  if (!form) return await accountPage(env, user, { loc, t, face, error: t(FORM_UNREADABLE), status: 400 })
 
   const op = field(form, 'op')
 
@@ -444,21 +449,21 @@ export async function handleAccount(request: Request, env: Env, user: User): Pro
     if (!res.ok) {
       const message =
         res.error === 'invalid_credentials' ? t(WRONG_CURRENT_PASSWORD) : accountErrorMessage(res.error, t)
-      return await accountPage(env, user, { loc, t, error: message, status: 400 })
+      return await accountPage(env, user, { loc, t, face, error: message, status: 400 })
     }
     // Rendered, not redirected: a 303 would drop the plaintext, and putting it
     // in the redirect's query string would write the new credential straight
     // into browser history — the thing rotation was called on to fix.
-    return await accountPage(env, user, { loc, t, rotated: res.token })
+    return await accountPage(env, user, { loc, t, face, rotated: res.token })
   }
 
   if (op !== 'password') {
-    return await accountPage(env, user, { loc, t, error: t('不认识这个操作。'), status: 400 })
+    return await accountPage(env, user, { loc, t, face, error: t('不认识这个操作。'), status: 400 })
   }
 
   const next = secret(form, 'password')
   if (next !== secret(form, 'password2')) {
-    return await accountPage(env, user, { loc, t, error: t(MISMATCH), status: 400 })
+    return await accountPage(env, user, { loc, t, face, error: t(MISMATCH), status: 400 })
   }
 
   const res = await changePassword(env, {
@@ -466,7 +471,9 @@ export async function handleAccount(request: Request, env: Env, user: User): Pro
     currentPassword: secret(form, 'current'),
     newPassword: next,
   })
-  if (!res.ok) return await accountPage(env, user, { loc, t, error: passwordChangeMessage(res.error, t), status: 400 })
+  if (!res.ok) {
+    return await accountPage(env, user, { loc, t, face, error: passwordChangeMessage(res.error, t), status: 400 })
+  }
   // changePassword drops every session including this one, so the fresh cookie
   // it hands back has to ride along or the redirect below lands on a 401.
   return seeOther('/account?saved=1', res.setCookie)
@@ -526,6 +533,8 @@ interface AccountOptions extends Lang {
   welcome?: Welcome
   error?: string
   status?: number
+  /** The face to render the header as — see `handleAccount`'s own comment. */
+  face?: Face
 }
 
 async function accountPage(env: Env, user: User, o: AccountOptions): Promise<Response> {
@@ -542,7 +551,7 @@ async function accountPage(env: Env, user: User, o: AccountOptions): Promise<Res
     lang: o.loc,
     css: CONSOLE_CSS + ACCOUNT_CSS,
     status: o.status ?? 200,
-    body: `${consoleHeader(user, 'account', t)}
+    body: `${consoleHeader(user, 'account', t, o.face)}
 <main>
   <h1>${t('账号')}</h1>
   ${banner(o.error, 'bad')}

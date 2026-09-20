@@ -32,6 +32,7 @@
 
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
+import worker from '../src/index'
 import { handleToday } from '../src/ui/today'
 import { handleGoals } from '../src/ui/goals'
 import { renderTodaySetup } from '../src/ui/todaysetup'
@@ -44,11 +45,12 @@ import { handleSurf } from '../src/ui/surf'
 import { renderSurfReview } from '../src/ui/surfreview'
 import { handleSurfSetup } from '../src/ui/surfsetup'
 import { handleAdmin } from '../src/api/admin'
-import { CONSOLE_CSS } from '../src/ui/console'
+import { CONSOLE_CSS, FACE_COOKIE, faceForPath } from '../src/ui/console'
 import { breathePage } from '../src/ui/breathe'
 import { renderLanding } from '../src/ui/landing'
 import { renderMock } from '../src/ui/mock'
 import { DEFAULT_THEME } from '../src/ui/layout'
+import { COOKIE_NAME, issueCookie } from '../src/auth'
 import { upsertUserApp } from '../src/db'
 import type { User } from '../src/types'
 
@@ -63,6 +65,7 @@ async function reset(): Promise<void> {
     env.DB.prepare('DELETE FROM goal_checkins'),
     env.DB.prepare('DELETE FROM goal_tasks'),
     env.DB.prepare('DELETE FROM goals'),
+    env.DB.prepare('DELETE FROM sessions_web'),
     env.DB.prepare('DELETE FROM users'),
   ])
   await env.DB.prepare(
@@ -84,12 +87,22 @@ beforeEach(reset)
 
 type PageFn = (u: User) => Promise<Response>
 
+/**
+ * /account with a `yixi_face` cookie for the given face — used below to fold
+ * /account into each face's own shape-equality check, now that its header
+ * borrows the remembered face instead of always falling back to 拦截.
+ */
+function accountAs(face: 'today' | 'breathe' | 'surf'): PageFn {
+  return (u) => handleAccount(new Request(`${BASE}/account`, { headers: { cookie: `${FACE_COOKIE}=${face}` } }), env, u)
+}
+
 /** The 今日 face — all four pages now exist. */
 const TODAY_PAGES: Record<string, PageFn> = {
   today: (u) => handleToday(new Request(`${BASE}/today`, { headers: { 'user-agent': 'x' } }), env, u),
   goals: (u) => handleGoals(new Request(`${BASE}/today/goals`), env, u),
   progress: (u) => renderProgress(new Request(`${BASE}/today/review`), env, u),
   todaysetup: (u) => renderTodaySetup(new Request(`${BASE}/today/setup`), env, u),
+  account: accountAs('today'),
 }
 
 /** The 拦截 face — the original console. */
@@ -97,7 +110,7 @@ const BREATHE_PAGES: Record<string, PageFn> = {
   review: (u) => renderReview(new Request(`${BASE}/review`), env, u),
   settings: (u) => handleSettings(new Request(`${BASE}/settings`), env, u),
   setup: (u) => renderSetup(new Request(`${BASE}/setup`), env, u),
-  account: (u) => handleAccount(new Request(`${BASE}/account`), env, u),
+  account: accountAs('breathe'),
 }
 
 /**
@@ -108,10 +121,25 @@ const BREATHE_PAGES: Record<string, PageFn> = {
 const SURF_PAGES: Record<string, PageFn> = {
   surfreview: (u) => renderSurfReview(new Request(`${BASE}/surf/review`), env, u),
   surfsetup: (u) => handleSurfSetup(new Request(`${BASE}/surf/setup`), env, u),
+  account: accountAs('surf'),
 }
 
-/** Every page reachable from any face's nav, for checks that don't care which face. */
-const ALL_PAGES: Record<string, PageFn> = { ...TODAY_PAGES, ...BREATHE_PAGES, ...SURF_PAGES }
+/**
+ * Every page reachable from any face's nav, for checks that don't care which
+ * face. `account` is pinned back to the plain, no-cookie render rather than
+ * whichever face-specific variant the object spread below would otherwise
+ * leave behind (the three maps above all key their own /account render as
+ * `account`, and a later spread silently wins over an earlier one) — the
+ * checks that iterate this table care about universal properties (one
+ * header, noindex, a link to /account, nothing below 11px), not about which
+ * face's variant they happen to be looking at.
+ */
+const ALL_PAGES: Record<string, PageFn> = {
+  ...TODAY_PAGES,
+  ...BREATHE_PAGES,
+  ...SURF_PAGES,
+  account: (u) => handleAccount(new Request(`${BASE}/account`), env, u),
+}
 
 async function html(pages: Record<string, PageFn>, name: string, u: User = user): Promise<string> {
   const res = await pages[name]!(u)
@@ -314,6 +342,132 @@ describe('one nav a face, on every signed-in page', () => {
   it('renders no <header> on /surf itself — the flow page owns its own chrome', async () => {
     const page = await (await handleSurf(new Request(`${BASE}/surf`), env, user)).text()
     expect(page.match(/<header>/g), 'the flow page must not have grown a shared header').toBeNull()
+  })
+})
+
+/**
+ * The bug this cookie fixes: 「点击账号按钮之后就会跳转到拦截主题」. /account
+ * and /admin belong to no face, and `faceOf` used to fall back to 拦截
+ * unconditionally, so opening 账号 from 今日 or 渡 silently swapped the whole
+ * header out from under the reader. `yixi_face` remembers the last face a
+ * real page visit resolved (`faceForPath`, applied by src/index.ts) so a
+ * face-less page can render with that face instead.
+ */
+describe('yixi_face cookie: /account borrows the remembered face', () => {
+  async function accountHtml(cookie?: string): Promise<string> {
+    const init = cookie ? { headers: { cookie } } : undefined
+    const res = await handleAccount(new Request(`${BASE}/account`, init), env, user)
+    return await res.text()
+  }
+
+  it('shows the 渡 nav and facename with yixi_face=surf', async () => {
+    const page = await accountHtml(`${FACE_COOKIE}=surf`)
+    const nav = navOf(page, 'account (surf cookie)')
+    expect(nav).toContain('href="/surf/review"')
+    expect(nav).toContain('href="/surf/setup"')
+    expect(nav).toContain('href="/account"')
+    expect(nav, 'leaked a 今日 href').not.toMatch(/href="\/today"/)
+    expect(nav, 'leaked a 拦截 href').not.toMatch(/href="\/review"/)
+    expect(page).toContain('class="facename">· 渡</span>')
+  })
+
+  it('shows the 今日 nav and facename with yixi_face=today', async () => {
+    const page = await accountHtml(`${FACE_COOKIE}=today`)
+    const nav = navOf(page, 'account (today cookie)')
+    expect(nav).toContain('href="/today"')
+    expect(nav).toContain('href="/today/goals"')
+    expect(nav).toContain('href="/account"')
+    expect(nav, 'leaked a 拦截 href').not.toMatch(/href="\/review"/)
+    expect(nav, 'leaked a 渡 href').not.toMatch(/href="\/surf\/review"/)
+    expect(page).toContain('class="facename">· 今日</span>')
+  })
+
+  it('falls back to 拦截, as before, with no cookie or an unrecognised value', async () => {
+    for (const cookie of [undefined, `${FACE_COOKIE}=bogus`, `${FACE_COOKIE}=`]) {
+      const page = await accountHtml(cookie)
+      const nav = navOf(page, `account (${cookie ?? 'no cookie'})`)
+      expect(nav, `${cookie}: href`).toContain('href="/review"')
+      expect(nav, `${cookie}: href`).toContain('href="/settings"')
+      expect(nav, `${cookie}: href`).toContain('href="/setup"')
+      expect(page, `${cookie}: facename`).toContain('class="facename">· 拦截</span>')
+    }
+  })
+})
+
+/**
+ * The cookie itself is only ever written by the router, on a page visit that
+ * resolves to a real face — `handleAccount` above never sets it, and neither
+ * does `handleAdmin`, which is what keeps opening 账号 from cooking its own
+ * remembered face right back out from under it.
+ */
+describe('yixi_face cookie: written by the router, only on real face pages', () => {
+  async function signedIn(path: string): Promise<Response> {
+    const cookie = await issueCookie(env, user)
+    const sessionValue = cookie.split(';')[0]!.slice(COOKIE_NAME.length + 1)
+    return await worker.fetch(
+      new Request(`${BASE}${path}`, { headers: { Cookie: `${COOKIE_NAME}=${sessionValue}`, 'user-agent': 'x' } }),
+      env,
+    )
+  }
+
+  it('sets yixi_face=surf on /surf/review', async () => {
+    const res = await signedIn('/surf/review')
+    expect(res.headers.get('set-cookie')).toContain(`${FACE_COOKIE}=surf`)
+  })
+
+  it('sets yixi_face=today on /today', async () => {
+    const res = await signedIn('/today')
+    expect(res.headers.get('set-cookie')).toContain(`${FACE_COOKIE}=today`)
+  })
+
+  it('sets yixi_face=breathe on /review', async () => {
+    const res = await signedIn('/review')
+    expect(res.headers.get('set-cookie')).toContain(`${FACE_COOKIE}=breathe`)
+  })
+
+  it('does not set yixi_face on /account itself — that is the whole point', async () => {
+    const res = await signedIn('/account')
+    expect(res.headers.get('set-cookie')).toBeNull()
+  })
+
+  it('never sets yixi_face on a /gate or /b response', async () => {
+    const gate = await worker.fetch(new Request(`${BASE}/gate?app=xhs`), env)
+    expect(gate.headers.get('set-cookie')).toBeNull()
+    const b = await worker.fetch(new Request(`${BASE}/b`), env)
+    expect(b.headers.get('set-cookie')).toBeNull()
+  })
+})
+
+describe('faceForPath', () => {
+  it('maps every 今日 path, segment-aware rather than by prefix', () => {
+    expect(faceForPath('/today')).toBe('today')
+    expect(faceForPath('/today/goals')).toBe('today')
+    expect(faceForPath('/today/review')).toBe('today')
+    expect(faceForPath('/today/setup')).toBe('today')
+    // Not a prefix match: `/todayx` is a different path, not `/today` with
+    // something appended.
+    expect(faceForPath('/todayx')).toBeNull()
+  })
+
+  it('maps every 渡 path, including /surf itself — the flow page, no header', () => {
+    expect(faceForPath('/surf')).toBe('surf')
+    expect(faceForPath('/surf/review')).toBe('surf')
+    expect(faceForPath('/surf/setup')).toBe('surf')
+    expect(faceForPath('/surfing')).toBeNull()
+  })
+
+  it('maps the three 拦截 pages, and only those exact paths', () => {
+    expect(faceForPath('/review')).toBe('breathe')
+    expect(faceForPath('/settings')).toBe('breathe')
+    expect(faceForPath('/setup')).toBe('breathe')
+  })
+
+  it('answers null for the face-less pages and everything else', () => {
+    expect(faceForPath('/account')).toBeNull()
+    expect(faceForPath('/admin')).toBeNull()
+    expect(faceForPath('/')).toBeNull()
+    expect(faceForPath('/gate')).toBeNull()
+    expect(faceForPath('/b')).toBeNull()
   })
 })
 
