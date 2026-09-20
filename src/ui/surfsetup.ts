@@ -27,7 +27,7 @@
 
 import type { Env, User } from '../types'
 import { SURF_LINE_LEN, SURF_SCENE_LEN } from '../types'
-import { SCENE_KEYS, SCENES, hasScene, isSceneKey, sceneOf, sceneTrigger, storedScene } from '../surfscenes'
+import { SCENE_KEYS, SCENES, hasScene, isSceneKey, sceneOf, storedScene } from '../surfscenes'
 import { setUserSurfScene } from '../urges'
 import { DEFAULT_THEME, escapeHtml, page } from './layout'
 import { CONSOLE_CSS, consoleHeader } from './console'
@@ -50,7 +50,12 @@ export async function handleSurfSetup(request: Request, env: Env, user: User): P
 function renderSurfSetup(request: Request, user: User, t: T, loc: Locale): Response {
   const origin = new URL(request.url).origin
   const chosen = hasScene(user) ? sceneOf(user).scene.key : null
-  const custom = chosen === 'custom' ? sceneTrigger(user) : ''
+  // `sceneOf(user).label` rather than `sceneTrigger(user)`: the latter now
+  // carries the `custom:` namespace prefix (see src/surfscenes.ts), and this
+  // box wants the reader's own bare words back, not the storage encoding.
+  // Safe against the '冲动' fallback — `chosen === 'custom'` only holds when
+  // `hasScene(user)` is true, which is exactly the case `label` has real text.
+  const custom = chosen === 'custom' ? sceneOf(user).label : ''
   const line = typeof user.surf_line === 'string' ? user.surf_line : ''
 
   const options = SCENE_KEYS.map((key) => {
@@ -77,7 +82,12 @@ ${options}
   <p>${t('主屏：在 Safari 打开 /surf，分享 → 添加到主屏幕，会得到一个独立的「渡」图标。')}</p>
   <p>${t(
     '快捷指令：新建一个「打开 URL」动作，地址填 {origin}/surf?k=你的令牌（令牌在<a href="/account">账号</a>页），命名为「渡」，就能对 Siri 说。',
-    { origin },
+    // `fillParams` (src/i18n/index.ts) does no escaping of its own — it just
+    // splices `origin` into the template — so this call site has to escape it
+    // itself before it reaches HTML, the same discipline as `custom`/`line`
+    // above. `origin` is `new URL(request.url).origin`, so this is normally
+    // inert, but nothing downstream re-validates the Host header either.
+    { origin: escapeHtml(origin) },
   )}</p>
 </section>
 </main>`
@@ -140,6 +150,8 @@ const SURFSETUP_CSS = `
 .opts{margin:0 0 18px}
 .opt{display:flex;align-items:center;gap:12px;min-height:44px;margin:0;font-size:16px;color:var(--fg);line-height:1.5}
 .opt input{width:20px;height:20px;accent-color:var(--fg);margin:0;flex:0 0 auto}
-/* Indented under 「其他」, and narrow: ten characters is the whole point. */
-input#custom{margin:4px 0 0 32px;width:auto;max-width:14rem}
+/* Indented under 「其他」, and narrow: ten characters is the whole point. It is
+   the one control on this page outside a .opt row, so it has to earn its own
+   44px iOS touch height rather than inherit one from that class. */
+input#custom{margin:4px 0 0 32px;width:auto;max-width:14rem;min-height:44px}
 `

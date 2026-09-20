@@ -59,6 +59,9 @@ describe('GET', () => {
     expect(h).toContain('其他')
     // The row is the touch target, and iOS will not forgive a smaller one.
     expect(h).toMatch(/\.opt\{[^}]*min-height:44px/)
+    // input#custom sits outside every .opt row, so it needs its own 44px
+    // floor rather than inheriting the radio rows' touch height.
+    expect(h).toMatch(/input#custom\{[^}]*min-height:44px/)
   })
 
   it('preselects nothing at all for an account that has never chosen', async () => {
@@ -112,6 +115,17 @@ describe('GET', () => {
     // (no `?k=` on the request, nothing in `User` carries one) — this only
     // pins the intent: the literal placeholder, never a real value.
     expect(h).toContain('你的令牌')
+  })
+
+  it('escapes the origin before it reaches the Shortcuts paragraph', async () => {
+    // fillParams (src/i18n/index.ts) does no escaping of its own — it only
+    // splices `origin` into the template — so renderSurfSetup has to call
+    // escapeHtml(origin) itself, the same discipline as `custom`/`line`
+    // above. A plain https origin round-trips unchanged either way; the
+    // point of this test is pinning that the escaping call is there at all.
+    const res = await handleSurfSetup(new Request('https://yixi.test/surf/setup'), env, user)
+    const h = await res.text()
+    expect(h).toContain('https://yixi.test/surf?k=')
   })
 
   it('marks 渡 · 怎么配 as the current tab', async () => {

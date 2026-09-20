@@ -16,10 +16,11 @@
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { farewellLines, handleSurf } from '../src/ui/surf'
-import { getUrge, listUrgesSince } from '../src/urges'
+import { createUrge, getUrge, listUrgesSince } from '../src/urges'
 import { shanghaiDate } from '../src/db'
 import { translator } from '../src/i18n'
 import { SCENES } from '../src/surfscenes'
+import { SURF_RESUME_MS } from '../src/types'
 import type { Urge, User } from '../src/types'
 
 const user: User = { id: 1, name: '张三', is_owner: 0, created_at: 0 }
@@ -217,6 +218,17 @@ describe('the page', () => {
     expect(h).not.toContain('<header')
   })
 
+  it('hides the a2hs banner on every step but the last', async () => {
+    // Step 0 also carries the /surf/setup link at the bottom of the column on
+    // a first visit; the banner has to stay off there too, not only during
+    // the ten minutes, and only appear once the walk-through has ended.
+    const h = await html(user, { 'user-agent': IPHONE_SAFARI })
+    expect(h).toContain(
+      'body[data-step="0"] .a2hs,body[data-step="1"] .a2hs,body[data-step="2"] .a2hs{display:none}',
+    )
+    expect(h).not.toMatch(/body\[data-step="3"\]\s*\.a2hs\s*\{display:none\}/)
+  })
+
   it('renders in English without Chinese punctuation leaking into the flow', async () => {
     const h = await html({ ...user, surf_scene: 'snack' }, { 'accept-language': 'en' })
     const main = mainOf(h)
@@ -287,7 +299,14 @@ describe('op=start', () => {
 
   it('writes the account own words for a custom scene, and nothing for an unconfigured one', async () => {
     const custom = await startUrge({ ...user, surf_scene: 'custom:打牌' })
-    expect((await getUrge(env.DB, 1, custom))!.trigger).toBe('打牌')
+    // Namespaced with the `custom:` prefix so a custom scene never collides
+    // with a preset key that happens to read the same in `urges.trigger`.
+    expect((await getUrge(env.DB, 1, custom))!.trigger).toBe('custom:打牌')
+
+    // Finished first: otherwise the second start would resume this same open
+    // row (see the resume-on-reopen tests below) instead of opening a fresh
+    // one, and this test would be asserting about the wrong row.
+    await postFetch({ op: 'finish', id: String(custom), outcome: 'passed' })
 
     const none = await startUrge()
     // Not 「冲动」, the word the page shows: '' has to keep meaning "never
@@ -308,6 +327,48 @@ describe('op=start', () => {
     expect(res.status).toBe(303)
     expect(res.headers.get('location')).toBe('/surf')
     expect(await listUrgesSince(env.DB, 1, 0)).toHaveLength(1)
+  })
+})
+
+describe('op=start resumes an open urge instead of duplicating it', () => {
+  // `start` now fires on every page load (not on a tap), so a reload, a
+  // mis-tap that bounces straight back, or iOS restoring a backgrounded tab
+  // all replay it. Without resuming, each of those would open its own row for
+  // what is really the same urge and inflate 「三十天 N 次」.
+  it('returns the same id for two starts inside the resume window, and leaves one row', async () => {
+    const first = await startUrge()
+    const second = await startUrge()
+    expect(second).toBe(first)
+    expect(await listUrgesSince(env.DB, 1, 0)).toHaveLength(1)
+  })
+
+  it('opens a new row once the open one has been finished', async () => {
+    const first = await startUrge()
+    await postFetch({ op: 'finish', id: String(first), outcome: 'passed' })
+    const second = await startUrge()
+    expect(second).not.toBe(first)
+    expect(await listUrgesSince(env.DB, 1, 0)).toHaveLength(2)
+  })
+
+  it('opens a new row rather than resuming an unfinished one older than SURF_RESUME_MS', async () => {
+    const stale = await createUrge(env.DB, {
+      userId: 1,
+      state: '',
+      trigger: '',
+      now: Date.now() - SURF_RESUME_MS - 1000,
+    })
+    const fresh = await startUrge()
+    expect(fresh).not.toBe(stale)
+    expect((await getUrge(env.DB, 1, stale))!.outcome).toBeNull()
+    expect(await listUrgesSince(env.DB, 1, 0)).toHaveLength(2)
+  })
+
+  it("never resumes another account's open row", async () => {
+    const theirs = await startUrge(other)
+    const mine = await startUrge()
+    expect(mine).not.toBe(theirs)
+    expect(await listUrgesSince(env.DB, 1, 0)).toHaveLength(1)
+    expect(await listUrgesSince(env.DB, 2, 0)).toHaveLength(1)
   })
 })
 
@@ -523,7 +584,7 @@ describe('the flow end to end, as the script would walk it', () => {
     const row = (await getUrge(env.DB, 1, id)) as Urge
     expect(row).toMatchObject({
       state: '',
-      trigger: '打牌',
+      trigger: 'custom:打牌',
       rounds: 2,
       outcome: 'opened',
       note: '',

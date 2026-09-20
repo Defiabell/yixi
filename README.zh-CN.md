@@ -269,7 +269,7 @@ src/ui/surf.ts      /surf —— 十分钟的冲动流程，一份文档四个�
 src/ui/surfreview.ts  /surf/review —— 最近三十天冲动记录的回看
 src/ui/surfsetup.ts  /surf/setup —— 选一次场景，以及主屏幕、快捷指令的入口说明
 src/api/admin.ts    owner 的发号台，以及那条隐私红线
-migrations/*.sql    D1 schema，十个 migration
+migrations/*.sql    D1 schema，十一个 migration
 scripts/icon.mjs    重新生成 src/ui/pwa.ts 里那份 base64 PNG
 pages/              Pages 入口（一行）加它自己的 wrangler.toml
 shortcut/README.md  快捷指令为什么长这样

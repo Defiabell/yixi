@@ -112,16 +112,23 @@ export function sceneOf(user: Pick<User, 'surf_scene'>): { scene: Scene; label: 
 
 /**
  * What goes into `urges.trigger` when the flow starts: the preset key, or the
- * custom scene's own text, or `''` for an account that never configured one.
+ * custom scene's own text prefixed with `custom:`, or `''` for an account
+ * that never configured one.
  *
  * Deliberately not `sceneOf().label`: the label falls back to 「冲动」 for an
  * unconfigured account, and writing that into the column would make "never
  * chose a scene" indistinguishable from "chose one and called it 冲动".
+ *
+ * The `custom:` prefix (rather than the bare text) keeps a custom scene whose
+ * own words happen to match a preset key — someone typing `feed` as their own
+ * trigger — distinguishable in `urges.trigger`/`summarizeUrges` from an
+ * account that actually picked the `feed` preset.
  */
 export function sceneTrigger(user: Pick<User, 'surf_scene'>): string {
   const raw = typeof user.surf_scene === 'string' ? user.surf_scene.trim() : ''
   if (isPresetKey(raw)) return raw
-  return customTextOf(raw)
+  const text = customTextOf(raw)
+  return text === '' ? '' : `${CUSTOM_PREFIX}${text}`
 }
 
 /** Whether this account has been through /surf/setup. */

@@ -13,7 +13,6 @@ import {
   finishUrge,
   getUrge,
   listUrgesSince,
-  setUrgeNote,
   setUserSurfScene,
   summarizeUrges,
 } from '../src/urges'
@@ -111,16 +110,6 @@ describe('finishUrge', () => {
   })
 })
 
-describe('setUrgeNote', () => {
-  it('writes the note for the owner only', async () => {
-    const id = await createUrge(env.DB, { userId: 1, state: '', trigger: '', now: NOW })
-    expect(await setUrgeNote(env.DB, 2, id, '别人的话')).toBe(false)
-    expect((await getUrge(env.DB, 1, id))!.note).toBe('')
-    expect(await setUrgeNote(env.DB, 1, id, '下次先做二十个深蹲')).toBe(true)
-    expect((await getUrge(env.DB, 1, id))!.note).toBe('下次先做二十个深蹲')
-  })
-})
-
 describe('listUrgesSince', () => {
   it('orders by started_at (not insertion order) and returns only the caller’s rows', async () => {
     const later = await createUrge(env.DB, { userId: 1, state: '', trigger: '', now: NOW + 1000 })
@@ -158,7 +147,7 @@ describe('setUserSurfScene', () => {
     expect(configured).not.toBeNull()
     expect(sceneOf(configured!).scene.key).toBe('custom')
     expect(sceneOf(configured!).label).toBe('打牌')
-    expect(sceneTrigger(configured!)).toBe('打牌')
+    expect(sceneTrigger(configured!)).toBe('custom:打牌')
 
     await setUserSurfScene(env.DB, 1, 'lust', null)
     const preset = await getUserById(env.DB, 1)
@@ -198,7 +187,9 @@ describe('sceneOf', () => {
     expect(user.surf_scene).toBe('custom:打牌')
     expect(sceneOf(user).scene).toBe(SCENES.custom)
     expect(sceneOf(user).label).toBe('打牌')
-    expect(sceneTrigger(user)).toBe('打牌')
+    // Namespaced, unlike the label: `urges.trigger` has to keep a custom
+    // scene apart from a preset key that happens to read the same.
+    expect(sceneTrigger(user)).toBe('custom:打牌')
     expect(hasScene(user)).toBe(true)
   })
 
@@ -218,7 +209,7 @@ describe('sceneOf', () => {
   it('cuts custom text at 10 characters, the same limit /surf/setup enforces', () => {
     const long = '一'.repeat(30)
     expect(sceneOf({ surf_scene: `custom:${long}` }).label).toBe(long.slice(0, 10))
-    expect(sceneTrigger({ surf_scene: `custom:${long}` })).toBe(long.slice(0, 10))
+    expect(sceneTrigger({ surf_scene: `custom:${long}` })).toBe(`custom:${long.slice(0, 10)}`)
   })
 })
 

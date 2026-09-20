@@ -29,6 +29,24 @@ export async function createUrge(
   return Number(res.meta.last_row_id)
 }
 
+/**
+ * The most recent still-open row (`outcome IS NULL`) for this user, started
+ * at or after `sinceTs`, or null if there is none. `sinceTs` is the caller's
+ * resume window (`now - SURF_RESUME_MS` in src/ui/surf.ts) — a row older than
+ * that is left alone rather than resumed, which is also how a stale
+ * never-finished row eventually stops being reused.
+ */
+export async function findOpenUrge(db: D1Database, userId: number, sinceTs: number): Promise<Urge | null> {
+  return await db
+    .prepare(
+      `SELECT id, user_id, started_at, ended_at, outcome, state, trigger, rounds, note
+       FROM urges WHERE user_id = ?1 AND outcome IS NULL AND started_at >= ?2
+       ORDER BY started_at DESC LIMIT 1`,
+    )
+    .bind(userId, sinceTs)
+    .first<Urge>()
+}
+
 export async function bumpUrgeRound(db: D1Database, userId: number, id: number): Promise<boolean> {
   const res = await db
     .prepare('UPDATE urges SET rounds = rounds + 1 WHERE user_id = ?1 AND id = ?2')
@@ -59,14 +77,6 @@ export async function finishUrge(
        WHERE user_id = ?1 AND id = ?2 AND outcome IS NULL`,
     )
     .bind(userId, id, outcome, now)
-    .run()
-  return (res.meta.changes ?? 0) > 0
-}
-
-export async function setUrgeNote(db: D1Database, userId: number, id: number, note: string): Promise<boolean> {
-  const res = await db
-    .prepare('UPDATE urges SET note = ?3 WHERE user_id = ?1 AND id = ?2')
-    .bind(userId, id, note)
     .run()
   return (res.meta.changes ?? 0) > 0
 }

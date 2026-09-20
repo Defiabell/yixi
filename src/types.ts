@@ -234,6 +234,12 @@ export interface Urge {
 
 /** 十分钟一轮。 */
 export const SURF_ROUND_MS = 10 * 60 * 1000
+/**
+ * `op=start` 复用一条尚未结束记录的窗口——见 src/ui/surf.ts 里 `findOpenUrge`
+ * 的用法。`start` 现在一加载页面就发，刷新/误触/切回后台标签页都会再发一次，
+ * 没有这个窗口每一次都会新开一行，把「三十天 N 次」的次数吹起来。
+ */
+export const SURF_RESUME_MS = 20 * 60 * 1000
 /** 自定义场景那几个字的上限——写在按钮旁边，长了那一屏就不成立了。 */
 export const SURF_SCENE_LEN = 10
 /** 「想对那一刻的自己说的一句话」的字数上限。 */

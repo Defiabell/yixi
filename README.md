@@ -271,7 +271,7 @@ src/ui/surf.ts      /surf — the ten-minute urge-surfing flow, one document, fo
 src/ui/surfreview.ts  /surf/review — the 30-day look-back over recorded urges
 src/ui/surfsetup.ts  /surf/setup — pick the scene once, plus the home-screen and Shortcut entry points
 src/api/admin.ts    the owner's ticket window, and the privacy line
-migrations/*.sql    D1 schema, ten migrations
+migrations/*.sql    D1 schema, eleven migrations
 scripts/icon.mjs    regenerates the base64 PNG baked into src/ui/pwa.ts
 pages/              Pages entry point (one line) + its own wrangler.toml
 shortcut/README.md  why the Shortcut is shaped the way it is

@@ -34,9 +34,9 @@
 // environment, and the closing line is the same either way.
 
 import type { Env, User } from '../types'
-import { SURF_ROUND_MS } from '../types'
+import { SURF_RESUME_MS, SURF_ROUND_MS } from '../types'
 import { shanghaiDate } from '../db'
-import { bumpUrgeRound, createUrge, finishUrge, getUrge, listUrgesSince, summarizeUrges } from '../urges'
+import { bumpUrgeRound, createUrge, findOpenUrge, finishUrge, getUrge, listUrgesSince, summarizeUrges } from '../urges'
 import { hasScene, sceneOf, sceneTrigger } from '../surfscenes'
 import { DEFAULT_THEME, escapeHtml, jsonScript, page } from './layout'
 import { EXHALE_MS, INHALE_MS, ORB_CSS, orbHtml } from './breathing'
@@ -121,6 +121,14 @@ async function handlePost(request: Request, env: Env, user: User): Promise<Respo
   const asJson = request.headers.get('x-yixi') === 'fetch'
 
   if (op === 'start') {
+    // `start` fires on every load of this page, not on a tap (decision 4 at
+    // the top of this file) — a reload, a mis-tap that bounces straight back,
+    // or iOS restoring a backgrounded tab all replay it. Resuming whatever
+    // open row already exists inside SURF_RESUME_MS, instead of opening a new
+    // one every time, is what keeps one urge one row instead of inflating
+    // 「三十天 N 次」 with rows that are really the same walk-through.
+    const open = await findOpenUrge(env.DB, user.id, now - SURF_RESUME_MS)
+    if (open) return asJson ? ok({ id: open.id }) : back()
     // No fields. The client has nothing to say here and is not asked for
     // anything: the scene was chosen at /surf/setup, so the row's `trigger`
     // comes off the account rather than off a form the flow would have had to
@@ -372,8 +380,10 @@ a.linky{margin-top:2.4rem;min-height:44px;padding:11px 0;color:var(--dim);font-s
   display:flex;gap:12px;align-items:center;font-size:13px;line-height:1.7;color:var(--dim);box-shadow:0 6px 24px rgba(0,0,0,.08)}
 .a2hs p{margin:0;flex:1}
 .a2hs button.linky{color:var(--dim);font-size:14px;text-decoration:underline;text-underline-offset:3px;padding:11px 0;min-height:44px}
-/* The ten minutes are not the moment to sell an icon. */
-body[data-step="1"] .a2hs,body[data-step="2"] .a2hs{display:none}
+/* Neither the ten minutes nor the first screen — which carries the /surf/setup
+   link for a first visit — are the moment to sell an icon. Only the closing
+   step, once the walk-through is over, offers it. */
+body[data-step="0"] .a2hs,body[data-step="1"] .a2hs,body[data-step="2"] .a2hs{display:none}
 
 @media (prefers-reduced-motion:reduce){
   .ink i{animation:none}
