@@ -869,6 +869,29 @@ export const EN: Record<string, string> = {
   '放下手机，去另一个房间。回来再点。': 'Put the phone down and go to another room. Tap again when you are back.',
   先告诉我这是哪一种: 'Tell me which one this is first',
   我起来了: 'I am up',
+  // Step 1's five segments: a title each, the two buttons that end the two
+  // segments a person ends themselves, and one line of instruction where the
+  // thing on screen is not self-evident. 「呼吸」 is the segment; 「吸气」 and
+  // 「呼气」, the words inside it, are the breathing page's own and sit further
+  // up. 「第 {n} 个」 is the only counted string in the product — see decision
+  // 3 in src/ui/surf.ts for why it exists and why it is the only one.
+  手上的事: 'Your hands',
+  眼睛的事: 'Your eyes',
+  周围的事: 'Around you',
+  身体的事: 'Your body',
+  呼吸: 'Breath',
+  做完了: 'Done',
+  好了: 'Got it',
+  '点它。': 'Tap it.',
+  '跟着它。': 'Follow it.',
+  '第 {n} 个': 'Number {n}',
+  // 5-4-3-2-1 grounding, in the order groundingLines() returns them. Five
+  // senses counting down; the counting down is what makes it finishable.
+  '找出房间里五样蓝色的东西。': 'Find five blue things in the room.',
+  '听出四种不同的声音。': 'Pick out four different sounds.',
+  '摸三种不同的质地。': 'Touch three different textures.',
+  '闻两种气味。': 'Smell two things.',
+  '说出一样你此刻尝到的味道。': 'Name one taste in your mouth right now.',
   '十分钟了。': 'Ten minutes.',
   过去了: 'It passed',
   还想: 'Still there',
@@ -888,29 +911,28 @@ export const EN: Record<string, string> = {
   '添加到主屏幕，下次一步就到。': 'Add it to the home screen, and next time it is one tap.',
 
   // --- /surf scenes (src/surfscenes.ts, msg()) ------------------------------
-  // One opening line and three body exits a scene, picked once at
-  // /surf/setup. The openings name what the urge usually is, in the fewest
-  // words that stay true; the exits are things a body can do in a minute,
-  // not advice. 「其他」 above is the custom scene's own label.
+  // One opening line and two tasks a scene, picked once at /surf/setup. The
+  // openings name what the urge usually is, in the fewest words that stay
+  // true; the tasks are things to go and do — an errand for the hands in
+  // segment a, twenty of something for the body in segment d — not advice.
+  // 「其他」 above is the custom scene's own label.
   色欲: 'Lust',
   '它不是需要，是最近的一种止痛。': 'It is not a need. It is the nearest painkiller.',
-  '冷水洗脸。': 'Cold water on your face.',
+  '去洗手间，用冷水洗脸，回来点一下。': 'Go to the bathroom, cold water on your face, then come back and tap.',
   '二十个深蹲。': 'Twenty squats.',
-  '出门走五分钟。': 'Five minutes outside.',
   短视频: 'Short video',
   '手指想动，不是你想看。': 'The fingers want to move. You do not want to watch.',
-  '把手机放到另一个房间充电。': 'Leave the phone charging in another room.',
-  '打开一本纸书，看两页。': 'Open a paper book and read two pages.',
-  '站起来，倒一杯水。': 'Stand up and pour a glass of water.',
+  '把手机反面朝下放到桌子另一头，站起来倒一杯水，回来点一下。':
+    'Put the phone face down at the far end of the table, stand up and pour a glass of water, then come back and tap.',
   游戏: 'Games',
   '想赢的不是你，是上一局。': 'It is not you that wants to win. It is the last round.',
-  '先洗个澡。': 'Take a shower first.',
-  '把明天要做的第一件事写下来。': 'Write down the first thing you will do tomorrow.',
+  '去洗个脸，把明天要做的第一件事说出来。':
+    'Go wash your face, then say out loud the first thing you will do tomorrow.',
+  '二十个开合跳。': 'Twenty jumping jacks.',
   深夜加餐: 'Late-night eating',
   '多半是累，不是饿。': 'Mostly this is tiredness, not hunger.',
-  '喝一杯温水。': 'Drink a glass of warm water.',
+  '喝一杯温水，慢慢喝完。': 'Drink a glass of warm water, slowly, all of it.',
   '刷牙。': 'Brush your teeth.',
-  '关灯，躺十分钟。': 'Turn off the light and lie down for ten minutes.',
   '它会过去的。': 'It will pass.',
   // The word for a scene nobody named: an account that never opened
   // /surf/setup still has something to be called.

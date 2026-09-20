@@ -15,7 +15,7 @@
 
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { farewellLines, handleSurf } from '../src/ui/surf'
+import { farewellLines, groundingLines, handleSurf } from '../src/ui/surf'
 import { createUrge, getUrge, listUrgesSince } from '../src/urges'
 import { shanghaiDate } from '../src/db'
 import { translator } from '../src/i18n'
@@ -77,9 +77,11 @@ function stripComments(js: string): string {
 }
 /**
  * The `{ … }` block starting at the first brace at or after `from`, brace
- * matched. Good enough for this script, which has no brace inside any string
- * literal; it throws loudly rather than returning something plausible if that
- * ever stops being true.
+ * matched. Good enough for this script, whose only brace inside a string
+ * literal is the balanced `'{n}'` the reduced-motion line substitutes into —
+ * balanced is all this needs, since it counts rather than parses. It throws
+ * loudly rather than returning something plausible if an UNbalanced one ever
+ * appears.
  */
 function blockAfter(src: string, from: number): string {
   const open = src.indexOf('{', from)
@@ -147,6 +149,9 @@ describe('the page', () => {
     }
     expect(h).not.toContain('data-step="4"')
     expect(h).toMatch(/<body[^>]*data-step="0"/)
+    // Step 1's own switch, set server-side so segment a is already the visible
+    // one before the first frame runs.
+    expect(h).toMatch(/<body[^>]*data-seg="a"/)
     // The orb's own rules key off body.t-*: without the theme class both the
     // ink wash and the single dot render at once.
     expect(h).toMatch(/<body[^>]*class="t-(?:ink|breath)"/)
@@ -161,11 +166,59 @@ describe('the page', () => {
     expect(h).not.toContain('id="note"')
     expect(h).not.toContain('<input')
     expect(h).not.toContain('<form')
-    // The one button that moves the flow forward, and the two that end it.
-    // The 回看/怎么配 exits added to step 3 are <a> tags, not <button>, so they
-    // do not move this count — see the dedicated test below for those.
+    // Eight, and every one of them moves the flow forward or ends it: 我起来了
+    // on step 0; 做完了, the dot itself and 好了 inside step 1; 过去了, 还想,
+    // 再来十分钟 and 我点开了 on step 2. Not one of them is a choice ABOUT
+    // anything — the dot is a target, not an option. The 回看/怎么配 exits on
+    // step 3 are <a> tags, not <button>, so they do not move this count; see
+    // the dedicated test below for those.
     const buttons = mainOf(h).match(/<button/g) ?? []
-    expect(buttons).toHaveLength(5)
+    expect(buttons).toHaveLength(8)
+  })
+
+  it('walks step 1 through five segments in order, with no way to skip or go back', async () => {
+    const h = await html({ ...user, surf_scene: 'feed' })
+    const step1 = h.match(/<section class="step" data-step="1">([\s\S]*?)\n<\/section>/)
+    expect(step1, 'step 1 missing').toBeTruthy()
+    const body = step1![1]!
+    const segs = [...body.matchAll(/<div class="seg" data-seg="([a-e])">/g)].map((m) => m[1])
+    expect(segs).toEqual(['a', 'b', 'c', 'd', 'e'])
+    // No sixth segment anywhere, and nothing in the flow offers a way past one.
+    expect(h).not.toContain('data-seg="f"')
+    expect(body).not.toContain('id="skip"')
+    expect(body).not.toContain('id="back"')
+  })
+
+  it('counts segment b in sixty cells and segment d in twenty, with no numeral anywhere', async () => {
+    // The hairlines are the count. A numeral invites you to tick it down,
+    // which is the same objection this page has always had to a countdown.
+    const h = await html()
+    const bars = h.match(/<div class="bar" id="bar-[bd]" aria-hidden="true">((?:<i><\/i>)+)<\/div>/g) ?? []
+    expect(bars).toHaveLength(2)
+    const cellsIn = (id: string): number => {
+      const m = h.match(new RegExp(`<div class="bar" id="${id}" aria-hidden="true">((?:<i></i>)+)</div>`))
+      expect(m, `${id} missing`).toBeTruthy()
+      return (m![1]!.match(/<i><\/i>/g) ?? []).length
+    }
+    expect(cellsIn('bar-b')).toBe(60)
+    expect(cellsIn('bar-d')).toBe(20)
+    // The only counted string on the page is the reduced-motion line, and it
+    // ships empty and hidden — the script fills it a beat at a time.
+    expect(h).toContain('<p class="nth" id="nth" hidden></p>')
+  })
+
+  it('gives the tap dot a target well past the 44px floor, and takes it out of the gesture stack', async () => {
+    const h = await html()
+    expect(h).toContain('<button type="button" class="tapdot" id="tapdot"')
+    const rule = h.match(/\.tapdot\{([\s\S]*?)\}/)
+    expect(rule, '.tapdot rule missing').toBeTruthy()
+    const px = rule![1]!.match(/width:(\d+)px/)
+    expect(px, '.tapdot has no explicit width').toBeTruthy()
+    expect(Number(px![1])).toBeGreaterThanOrEqual(56)
+    // Both the dot and the area under it: without touch-action iOS holds every
+    // tap for ~300ms in case a second one follows.
+    expect(rule![1]).toContain('touch-action:none')
+    expect(h).toMatch(/\.zone\{[^}]*touch-action:none/)
   })
 
   it('offers 回看 and 怎么配 exits only on the closing step, below 再来一次', async () => {
@@ -194,22 +247,56 @@ describe('the page', () => {
     }
   })
 
-  it('opens with the chosen scene line and rotates that scene own three tips', async () => {
+  it('opens with the chosen scene line and renders that scene own two tasks', async () => {
     const h = await html({ ...user, surf_scene: 'game' })
     expect(h).toContain('<h1>冲动来了。</h1>')
     expect(h).toContain(`<p class="line">${SCENES.game.opening}</p>`)
-    // The first tip is server-rendered; all three travel in the config island
-    // the carousel reads from.
-    expect(h).toContain(`<p class="tip" id="tip">${SCENES.game.tips[0]}</p>`)
-    for (const tip of SCENES.game.tips) expect(h, tip).toContain(tip)
-    for (const tip of SCENES.snack.tips) expect(h, tip).not.toContain(tip)
+    // Both tasks are server-rendered into their own segment — neither is in
+    // the config island, because neither ever changes mid-walk.
+    expect(h).toContain(`<p class="task">${SCENES.game.handTask}</p>`)
+    expect(h).toContain(`<p class="task">${SCENES.game.bodyTask}</p>`)
+    // And no other scene's leaked in alongside.
+    expect(h).not.toContain(SCENES.snack.handTask)
     expect(h).not.toContain(SCENES.snack.opening)
+  })
+
+  it('swaps both tasks with the scene, and says so about the body task that is not counted', async () => {
+    for (const key of ['lust', 'game', 'snack'] as const) {
+      const h = await html({ ...user, surf_scene: key })
+      expect(h, key).toContain(`<p class="task">${SCENES[key].handTask}</p>`)
+      expect(h, key).toContain(`<p class="task">${SCENES[key].bodyTask}</p>`)
+      // 深夜加餐's body task is brushing your teeth, which is not twenty of
+      // anything: the config island carries a duration instead of a beat
+      // count, and every other scene carries null.
+      expect(h, key).toContain(`"bodyMs":${JSON.stringify(SCENES[key].bodyMs)}`)
+    }
+    expect(SCENES.snack.bodyMs).toBe(90_000)
+    expect(SCENES.lust.bodyMs).toBeNull()
+    expect(SCENES.game.bodyMs).toBeNull()
   })
 
   it('falls back to the neutral scene for an account that never configured one', async () => {
     const h = await html()
     expect(h).toContain(`<p class="line">${SCENES.custom.opening}</p>`)
-    for (const tip of SCENES.custom.tips) expect(h, tip).toContain(tip)
+    expect(h).toContain(`<p class="task">${SCENES.custom.handTask}</p>`)
+    expect(h).toContain(`<p class="task">${SCENES.custom.bodyTask}</p>`)
+  })
+
+  it('carries the segment titles, the two buttons and the 5-4-3-2-1 lines, verbatim', async () => {
+    const h = await html()
+    for (const title of ['手上的事', '眼睛的事', '周围的事', '身体的事', '呼吸']) {
+      expect(h, title).toContain(`<p class="segt">${title}</p>`)
+    }
+    expect(h).toContain('<button type="button" class="stop" id="did-a">做完了</button>')
+    expect(h).toContain('<button type="button" class="stop" id="did-c">好了</button>')
+    expect(h).toContain('<p class="hint">点它。</p>')
+    expect(h).toContain('<p class="hint">跟着它。</p>')
+    // The first grounding line is server-rendered; all five travel in the
+    // config island the segment steps through.
+    expect(h).toContain('<p class="task" id="around">找出房间里五样蓝色的东西。</p>')
+    for (const line of groundingLines(translator('zh'))) expect(h, line).toContain(line)
+    // Nothing in the flow raises its voice.
+    expect(mainOf(h)).not.toContain('！')
   })
 
   it('shows the account own line under the opening, escaped, and nothing when there is none', async () => {
@@ -269,12 +356,18 @@ describe('the page', () => {
     const main = mainOf(h)
     expect(main).toContain('An urge came.')
     expect(main).toContain('Mostly this is tiredness, not hunger.')
-    expect(main).toContain('Drink a glass of warm water.')
-    // The other two tips travel in the config island, which sits outside
-    // <main> — they have to be translated there too, or the carousel would
-    // switch back into Chinese twenty seconds in.
-    expect(h).toContain('Brush your teeth.')
-    expect(h).toContain('Turn off the light and lie down for ten minutes.')
+    // Both of this scene's tasks, and every segment title and button.
+    expect(main).toContain('Drink a glass of warm water, slowly, all of it.')
+    expect(main).toContain('Brush your teeth.')
+    for (const s of ['Your hands', 'Your eyes', 'Around you', 'Your body', 'Breath', 'Done', 'Got it']) {
+      expect(main, s).toContain(s)
+    }
+    expect(main).toContain('Find five blue things in the room.')
+    // The other four grounding lines and the counted line travel in the config
+    // island, which sits outside <main> — they have to be translated there
+    // too, or the segment would switch back into Chinese on its second line.
+    expect(h).toContain('Name one taste in your mouth right now.')
+    expect(h).toContain('Number {n}')
     expect(main).not.toMatch(/[「」，。！？；：（）]/)
   })
 
@@ -524,6 +617,86 @@ describe('the page script', () => {
     expect(js).not.toMatch(/setInterval/)
   })
 
+  it('has one function per segment, chained in order by nothing but SEQ', () => {
+    // There is no DOM in workerd, so the flow itself cannot be walked here.
+    // What can be checked is the shape that makes the order unambiguous: five
+    // named functions, one list naming them in order, and one mover — so there
+    // is no second place the order could be written down and disagree.
+    for (const name of ['segA', 'segB', 'segC', 'segD', 'segE']) fnBody(js, name)
+    expect(js).toContain('var SEQ=[segA,segB,segC,segD,segE]')
+    expect(js).toContain("var KEYS=['a','b','c','d','e']")
+    // Forward only, and the end of the list is the deciding step.
+    const next = fnBody(js, 'nextSeg')
+    expect(next).toContain('segi+1')
+    expect(next).toContain('go(2)')
+    expect(next).not.toMatch(/segi-1|segi--/)
+    // Every segment is entered through the one door, and nothing else sets
+    // data-seg — a segment reached any other way would skip the ring redraw.
+    expect(fnBody(js, 'enterSeg')).toContain("doc.setAttribute('data-seg'")
+    expect(js.split("setAttribute('data-seg'").length - 1).toBe(1)
+    // The two segments a person ends themselves do it through the same mover.
+    expect(js).toContain("if(el.closest('#did-a')){nextSeg();return}")
+    expect(js).toContain("if(el.closest('#did-c')){sayNext();return}")
+    expect(fnBody(js, 'sayNext')).toContain('nextSeg()')
+  })
+
+  it('draws the one ring off segment progress, a fifth at a time', () => {
+    // Not off the clock any more: 「完成一段进 1/5」. Two of the five segments
+    // have no clock at all, so a ring driven by elapsed time would be telling
+    // the reader about something other than where they are.
+    const draw = fnBody(js, 'drawRing')
+    expect(draw).toContain('segi+')
+    expect(draw).toContain('SEQ.length')
+    expect(draw).toContain('strokeDashoffset')
+    // And it is the only place that moves it, after the first paint.
+    expect(js.split('strokeDashoffset').length - 1).toBe(2)
+  })
+
+  it('counts the dots on pointerdown, never click, and only on the dot itself', () => {
+    // iOS holds a click for ~300ms in case a second tap follows, which at one
+    // dot a second reads as a page that keeps missing. And the listener being
+    // the dot's own is what makes 「点空白处不算」 true by construction rather
+    // than by a hit test.
+    expect(js).toContain("tapdot.addEventListener('pointerdown'")
+    expect(js).not.toMatch(/tapdot\.addEventListener\('click'/)
+    const handler = handlerBodies(js).find((b) => b.includes('taps++'))
+    expect(handler, 'the tap handler no longer increments taps').toBeTruthy()
+    expect(handler!).toContain('ev.preventDefault()')
+    expect(handler!).toContain('taps>=TAPS')
+    expect(handler!).toContain('nextSeg()')
+  })
+
+  it('carries each segment own limits as one number each, and the 15-minute backstop', () => {
+    // Sixty dots or 150s for segment b, 20 beats of 2s for d, 120s of breath
+    // for e — and CAP, which is not the length of step 1 but the only thing
+    // behind the two segments a tap has to end.
+    expect(js).toMatch(/var TAPS=60,TAPMS=150000\b/)
+    expect(js).toMatch(/var BEATS=20,BEATMS=2000,BREATHE=120000;/)
+    expect(js).toMatch(/var CAP=900000;/)
+    // The backstop is checked before any segment gets the frame, so a phone
+    // put down mid-errand still reaches the deciding step.
+    const frame = fnBody(js, 'frame')
+    expect(frame).toContain('if(now-t0>=CAP){running=false;go(2);return}')
+    expect(frame.indexOf('CAP')).toBeLessThan(frame.indexOf("key==='b'"))
+  })
+
+  it('replaces the beating dot with a counted line for a reader who asked for stillness', () => {
+    expect(js).toContain("window.matchMedia('(prefers-reduced-motion: reduce)')")
+    const segD = fnBody(js, 'segD')
+    expect(segD).toContain('beatwrap.hidden=calm')
+    expect(segD).toContain('nth.hidden=!(calm&&COUNTED)')
+    // And the scale is not written at all in that case — the dot is gone, so
+    // a transform on it would be work nobody sees.
+    expect(fnBody(js, 'tickD')).toContain("if(!calm)beat.style.transform='scale('")
+  })
+
+  it('runs segment d by beats, or by the clock for a body task with nothing to count', () => {
+    expect(js).toContain("var COUNTED=typeof cfg.bodyMs!=='number',BODYMS=COUNTED?BEATS*BEATMS:cfg.bodyMs")
+    const tick = fnBody(js, 'tickD')
+    expect(tick).toContain('el>=BODYMS')
+    expect(tick).toContain('COUNTED')
+  })
+
   it('reads its copy from the config island rather than carrying any', () => {
     expect(js).not.toMatch(/[一-鿿]/)
   })
@@ -608,6 +781,25 @@ describe('farewellLines', () => {
     const en = farewellLines(translator('en'))
     expect(en).toHaveLength(5)
     expect(en.every((l) => !/[一-鿿]/.test(l))).toBe(true)
+  })
+})
+
+describe('groundingLines', () => {
+  it('is 5-4-3-2-1, in that order, one sense at a time', () => {
+    expect(groundingLines(translator('zh'))).toEqual([
+      '找出房间里五样蓝色的东西。',
+      '听出四种不同的声音。',
+      '摸三种不同的质地。',
+      '闻两种气味。',
+      '说出一样你此刻尝到的味道。',
+    ])
+  })
+
+  it('translates whole, and stays as quiet in English', () => {
+    const en = groundingLines(translator('en'))
+    expect(en).toHaveLength(5)
+    expect(en.every((l) => !/[一-鿿]/.test(l))).toBe(true)
+    expect(en.every((l) => !l.includes('!'))).toBe(true)
   })
 })
 

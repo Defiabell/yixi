@@ -773,14 +773,29 @@ describe('/surf in English', () => {
     expect(main).not.toMatch(CHINESE_PUNCT)
   })
 
-  it('translates the scene tips, the ones on the page and the ones in the config island alike', async () => {
+  it('translates step 1 whole: both scene tasks, the five titles and the grounding lines', async () => {
     const html = await surfHtml(true, { ...user, surf_scene: 'snack' })
-    for (const tip of [
-      'Drink a glass of warm water.',
+    for (const line of [
+      // The chosen scene's own two tasks — segment a's errand and segment d's.
+      'Drink a glass of warm water, slowly, all of it.',
       'Brush your teeth.',
-      'Turn off the light and lie down for ten minutes.',
+      'Your hands',
+      'Your eyes',
+      'Around you',
+      'Your body',
+      'Breath',
+      'Tap it.',
+      'Follow it.',
+      // The first grounding line is on the page; the other four ride in the
+      // config island, and an untranslated one would switch the segment back
+      // into Chinese on its second tap.
+      'Find five blue things in the room.',
+      'Name one taste in your mouth right now.',
+      // The only counted string in the product, placeholder intact so the
+      // script can fill it per beat.
+      'Number {n}',
     ]) {
-      expect(html, tip).toContain(tip)
+      expect(html, line).toContain(line)
     }
   })
 

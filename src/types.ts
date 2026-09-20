@@ -232,8 +232,12 @@ export interface Urge {
   note: string
 }
 
-/** 十分钟一轮。 */
-export const SURF_ROUND_MS = 10 * 60 * 1000
+/**
+ * 步 1 的兜底上限，不是它的时长。五段小任务里有两段（手上的事、周围的事）只能
+ * 靠人点按钮结束，人可能拿着手机走开、锁屏、睡着——十五分钟到就直接进步 2，
+ * 不管走到第几段。正常走完五段大约八到十分钟。
+ */
+export const SURF_ROUND_MS = 15 * 60 * 1000
 /**
  * `op=start` 复用一条尚未结束记录的窗口——见 src/ui/surf.ts 里 `findOpenUrge`
  * 的用法。`start` 现在一加载页面就发，刷新/误触/切回后台标签页都会再发一次，

@@ -168,13 +168,19 @@ describe('sceneOf', () => {
     }
   })
 
-  it('resolves each preset key to its own opening and three tips', () => {
+  it('resolves each preset key to its own opening and its two step-1 tasks', () => {
     for (const key of ['lust', 'feed', 'game', 'snack'] as const) {
       const { scene, label } = sceneOf({ surf_scene: key })
       expect(scene.key).toBe(key)
       expect(label).toBe(SCENES[key].label)
-      expect(scene.tips).toHaveLength(3)
       expect(scene.opening.length).toBeGreaterThan(0)
+      // Segment a's errand and segment d's twenty of something. Both are
+      // rendered straight into step 1, so an empty one is a blank screen
+      // mid-urge rather than a missing nicety.
+      expect(scene.handTask.length, key).toBeGreaterThan(0)
+      expect(scene.bodyTask.length, key).toBeGreaterThan(0)
+      // Only 深夜加餐 has a body task with nothing countable in it.
+      expect(scene.bodyMs, key).toBe(key === 'snack' ? 90_000 : null)
       expect(hasScene({ surf_scene: key })).toBe(true)
     }
     // No two presets open with the same sentence — the whole point of picking.

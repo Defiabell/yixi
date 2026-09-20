@@ -10,7 +10,11 @@
 //
 // The copy is written to the same voice as the rest of the face: no praise, no
 // lecture, nothing red, and every line short enough to read at arm's length in
-// the dark. Each one is a `msg()` so test/i18n.test.ts's guard finds it and
+// the dark. The two task fields are what step 1 actually walks somebody
+// through — a thing for the hands and a thing for the body — rather than the
+// three passive suggestions this file used to rotate on screen; see the header
+// of src/ui/surf.ts for why that changed. Each one is a `msg()` so
+// test/i18n.test.ts's guard finds it and
 // src/i18n/en.ts must carry a translation; the caller wraps the value in its
 // own per-request `t()` (this module has no translator of its own — one
 // isolate serves many requests at once).
@@ -22,14 +26,37 @@ export type SceneKey = 'lust' | 'feed' | 'game' | 'snack' | 'custom'
 
 export const SCENE_KEYS: readonly SceneKey[] = ['lust', 'feed', 'game', 'snack', 'custom']
 
+/**
+ * How long segment d runs for a body task that has nothing countable in it.
+ * Brushing your teeth is not twenty of anything, so the dot has no beat to
+ * keep and the segment is simply ninety seconds long.
+ */
+const UNCOUNTED_BODY_MS = 90_000
+
 export interface Scene {
   key: SceneKey
   /** The word /surf/setup puts beside the radio. */
   label: string
   /** The one line under 「冲动来了。」 — what this particular urge usually is. */
   opening: string
-  /** The three body exits step 1 rotates through, twenty seconds each. */
-  tips: [string, string, string]
+  /**
+   * Segment a, 「手上的事」: one physical errand, ended by the reader tapping
+   * 「做完了」 and nothing else. It has to be a thing the hands do away from
+   * the phone — the whole point of the segment is that the page is not being
+   * looked at while it happens.
+   */
+  handTask: string
+  /**
+   * Segment d, 「身体的事」: what the body does while the dot keeps time.
+   * Twenty repetitions of something, unless `bodyMs` says otherwise.
+   */
+  bodyTask: string
+  /**
+   * How segment d ends. `null` — every scene but one — means twenty beats of
+   * the dot rising and falling, two seconds each. A number means "run for
+   * exactly this long", for a `bodyTask` with no repetition to count.
+   */
+  bodyMs: number | null
 }
 
 /**
@@ -43,31 +70,45 @@ export const SCENES: Record<SceneKey, Scene> = {
     key: 'lust',
     label: msg('色欲'),
     opening: msg('它不是需要，是最近的一种止痛。'),
-    tips: [msg('冷水洗脸。'), msg('二十个深蹲。'), msg('出门走五分钟。')],
+    handTask: msg('去洗手间，用冷水洗脸，回来点一下。'),
+    bodyTask: msg('二十个深蹲。'),
+    bodyMs: null,
   },
   feed: {
     key: 'feed',
     label: msg('短视频'),
     opening: msg('手指想动，不是你想看。'),
-    tips: [msg('把手机放到另一个房间充电。'), msg('打开一本纸书，看两页。'), msg('站起来，倒一杯水。')],
+    // Not 「把手机放到另一个房间充电」, which this face used to say: the page
+    // saying it IS the phone, and an errand that ends with the phone in
+    // another room ends the walk-through too. Face down and out of reach is
+    // as far as the hand can be sent while segment b is still to come.
+    handTask: msg('把手机反面朝下放到桌子另一头，站起来倒一杯水，回来点一下。'),
+    bodyTask: msg('二十个深蹲。'),
+    bodyMs: null,
   },
   game: {
     key: 'game',
     label: msg('游戏'),
     opening: msg('想赢的不是你，是上一局。'),
-    tips: [msg('先洗个澡。'), msg('把明天要做的第一件事写下来。'), msg('出门走五分钟。')],
+    handTask: msg('去洗个脸，把明天要做的第一件事说出来。'),
+    bodyTask: msg('二十个开合跳。'),
+    bodyMs: null,
   },
   snack: {
     key: 'snack',
     label: msg('深夜加餐'),
     opening: msg('多半是累，不是饿。'),
-    tips: [msg('喝一杯温水。'), msg('刷牙。'), msg('关灯，躺十分钟。')],
+    handTask: msg('喝一杯温水，慢慢喝完。'),
+    bodyTask: msg('刷牙。'),
+    bodyMs: UNCOUNTED_BODY_MS,
   },
   custom: {
     key: 'custom',
     label: msg('其他'),
     opening: msg('它会过去的。'),
-    tips: [msg('冷水洗脸。'), msg('二十个深蹲。'), msg('出门走五分钟。')],
+    handTask: msg('去洗手间，用冷水洗脸，回来点一下。'),
+    bodyTask: msg('二十个深蹲。'),
+    bodyMs: null,
   },
 }
 
