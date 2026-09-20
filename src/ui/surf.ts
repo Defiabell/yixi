@@ -350,7 +350,7 @@ function step1(scene: Scene, t: T): string {
 </div>
 <div class="seg" data-seg="b">
 <p class="segt">${t('眼睛的事')}</p>
-<p class="hint">${t('点它。')}</p>
+<p class="hint" aria-hidden="true">${t('点它。')}</p>
 <div class="zone"><button type="button" class="tapdot" id="tapdot" aria-label="${t('点它。')}" hidden></button></div>
 <div class="bar" id="bar-b" aria-hidden="true">${cells(TAPS)}</div>
 </div>
@@ -362,7 +362,7 @@ function step1(scene: Scene, t: T): string {
 <div class="seg" data-seg="d">
 <p class="segt">${t('身体的事')}</p>
 <p class="task">${t(scene.bodyTask)}</p>
-<p class="hint">${t('跟着它。')}</p>
+<p class="hint" id="follow">${t('跟着它。')}</p>
 <div class="beatwrap" id="beatwrap"><i class="beat" id="beat" aria-hidden="true"></i></div>
 <p class="nth" id="nth" hidden></p>
 <div class="bar" id="bar-d" aria-hidden="true">${cells(BEATS)}</div>
@@ -633,6 +633,7 @@ var ring=document.getElementById('ring'),phase=document.getElementById('phase');
 var tapdot=document.getElementById('tapdot');
 var barB=document.getElementById('bar-b'),barD=document.getElementById('bar-d');
 var beatwrap=document.getElementById('beatwrap'),beat=document.getElementById('beat');
+var follow=document.getElementById('follow');
 var nth=document.getElementById('nth'),around=document.getElementById('around');
 var still=document.getElementById('still'),more=document.getElementById('more');
 var fin=document.getElementById('fin'),lost=document.getElementById('lost');
@@ -651,7 +652,7 @@ var t0=0,running=false,lastWord='',pending=0;
 // through it we are (0-1). The ring is drawn from the last of these plus the
 // first, so one finished segment is one fifth however it ended.
 var segi=0,segT0=0,segProg=0;
-var taps=0,beats=0,said=0,onB=-1,onD=-1,gap=0;
+var taps=0,beats=0,said=0,onB=-1,onD=-1,gap=0,kb=false;
 
 function go(n){
   // The 800ms reveal belongs to step 2 alone. Left running, it un-hides
@@ -714,7 +715,7 @@ function segA(){}
 
 /** Segment b — sixty dots, or TAPMS, whichever comes first. */
 function segB(){
-  taps=0;onB=-1;fillB(0);
+  taps=0;onB=-1;fillB(0);kb=false;
   if(gap){clearTimeout(gap);gap=0}
   place();
 }
@@ -729,6 +730,21 @@ function place(){
   tapdot.style.left=spot(Math.random());
   tapdot.style.top=spot(Math.random());
   tapdot.hidden=false;
+  // Hiding the dot threw focus back to the document, so a keyboard would have
+  // to tab to it again sixty times over. Only once a keyboard has actually
+  // been used — a pointer must not have the page stealing focus under it.
+  if(kb)try{tapdot.focus()}catch(e){}
+}
+
+// One counting path, two doors into it, so a second way to reach the dot
+// cannot start counting differently from the first.
+function hit(){
+  if(KEYS[segi]!=='b')return;
+  taps++;
+  tapdot.hidden=true;
+  if(taps>=TAPS){fillB(TAPS);nextSeg();return}
+  if(gap)clearTimeout(gap);
+  gap=setTimeout(place,GAP+Math.random()*SPAN);
 }
 
 function tickB(el){
@@ -736,7 +752,9 @@ function tickB(el){
   // reader who has stopped tapping and will leave on the time limit.
   segProg=Math.max(taps/TAPS,el/TAPMS);
   fillB(taps);
-  if(el>=TAPMS)nextSeg();
+  // The pending dot goes with the segment. Left running, it un-hides the dot
+  // behind a segment nobody is looking at any more.
+  if(el>=TAPMS){if(gap){clearTimeout(gap);gap=0}nextSeg()}
 }
 
 /** Segment c — 5-4-3-2-1, one line and one 「好了」 at a time. */
@@ -756,11 +774,15 @@ function sayNext(){
 function segD(){
   beats=0;onD=-1;fillD(0);
   beat.style.transform='';
-  // Reduced motion: the dot would be the only thing moving on the screen and
-  // it is what the reader was asked to follow, so it goes and the count comes
-  // instead. An uncounted body task has no count to show, and the hairline is
-  // what is left.
-  beatwrap.hidden=calm;
+  // The dot and 「跟着它。」 are one thing: an instruction pointing at
+  // something that is not moving is worse than no instruction. Two cases take
+  // them both away. Reduced motion, where nothing may move and the count
+  // replaces the beat. And an uncounted body task, where there is no beat to
+  // keep at all — tickD writes no transform in that branch, so the dot would
+  // sit frozen under 「跟着它。」 for the whole ninety seconds. What is left
+  // there is the task line and the hairline, which does keep moving.
+  beatwrap.hidden=calm||!COUNTED;
+  follow.hidden=calm||!COUNTED;
   nth.hidden=!(calm&&COUNTED);
   if(calm&&COUNTED)nth.textContent=nthOf(1);
 }
@@ -918,11 +940,17 @@ document.addEventListener('click',function(ev){
 tapdot.addEventListener('pointerdown',function(ev){
   if(KEYS[segi]!=='b')return;
   ev.preventDefault();
-  taps++;
-  tapdot.hidden=true;
-  if(taps>=TAPS){fillB(TAPS);nextSeg();return}
-  if(gap)clearTimeout(gap);
-  gap=setTimeout(place,GAP+Math.random()*SPAN);
+  hit();
+});
+
+// The other door, and the only one a keyboard has: Enter and Space on a
+// focused button fire click with detail 0 and no pointerdown at all. A thumb
+// fires both, and its click carries detail >= 1 — that difference is the only
+// thing keeping one tap from counting twice.
+tapdot.addEventListener('click',function(ev){
+  if(ev.detail!==0)return;
+  kb=true;
+  hit();
 });
 
 if(cfg.a2hs){

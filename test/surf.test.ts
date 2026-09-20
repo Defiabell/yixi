@@ -20,7 +20,7 @@ import { createUrge, getUrge, listUrgesSince } from '../src/urges'
 import { shanghaiDate } from '../src/db'
 import { translator } from '../src/i18n'
 import { SCENES } from '../src/surfscenes'
-import { SURF_RESUME_MS } from '../src/types'
+import { SURF_RESUME_MS, SURF_ROUND_MS } from '../src/types'
 import type { Urge, User } from '../src/types'
 
 const user: User = { id: 1, name: '张三', is_owner: 0, created_at: 0 }
@@ -289,8 +289,8 @@ describe('the page', () => {
     }
     expect(h).toContain('<button type="button" class="stop" id="did-a">做完了</button>')
     expect(h).toContain('<button type="button" class="stop" id="did-c">好了</button>')
-    expect(h).toContain('<p class="hint">点它。</p>')
-    expect(h).toContain('<p class="hint">跟着它。</p>')
+    expect(h).toContain('<p class="hint" aria-hidden="true">点它。</p>')
+    expect(h).toContain('<p class="hint" id="follow">跟着它。</p>')
     // The first grounding line is server-rendered; all five travel in the
     // config island the segment steps through.
     expect(h).toContain('<p class="task" id="around">找出房间里五样蓝色的东西。</p>')
@@ -459,6 +459,15 @@ describe('op=start', () => {
 })
 
 describe('op=start resumes an open urge instead of duplicating it', () => {
+  it('holds the window open longer than two backstopped rounds', async () => {
+    // A walk-through that ends on the fifteen-minute backstop, plus 「再来十
+    // 分钟」 and a second one that does the same, is thirty minutes of one
+    // urge. If the resume window were shorter than that, the `start` iOS
+    // replays when it restores the backgrounded tab would open a second row
+    // for it and inflate 「三十天 N 次」 with the same urge counted twice.
+    expect(SURF_RESUME_MS).toBeGreaterThan(2 * SURF_ROUND_MS)
+  })
+
   // `start` now fires on every page load (not on a tap), so a reload, a
   // mis-tap that bounces straight back, or iOS restoring a backgrounded tab
   // all replay it. Without resuming, each of those would open its own row for
@@ -652,18 +661,78 @@ describe('the page script', () => {
     expect(js.split('strokeDashoffset').length - 1).toBe(2)
   })
 
-  it('counts the dots on pointerdown, never click, and only on the dot itself', () => {
+  it('counts a dot on pointerdown, and on click only when a keyboard sent it', () => {
     // iOS holds a click for ~300ms in case a second tap follows, which at one
-    // dot a second reads as a page that keeps missing. And the listener being
-    // the dot's own is what makes 「点空白处不算」 true by construction rather
-    // than by a hit test.
+    // dot a second reads as a page that keeps missing — so a thumb has to be
+    // heard on pointerdown. But a keyboard never sends pointerdown at all, and
+    // Enter on a focused button would then do nothing. Both doors exist; what
+    // keeps one thumb from counting twice is that a touch-originated click
+    // carries detail >= 1 and a keyboard-originated one carries 0.
     expect(js).toContain("tapdot.addEventListener('pointerdown'")
-    expect(js).not.toMatch(/tapdot\.addEventListener\('click'/)
-    const handler = handlerBodies(js).find((b) => b.includes('taps++'))
-    expect(handler, 'the tap handler no longer increments taps').toBeTruthy()
-    expect(handler!).toContain('ev.preventDefault()')
-    expect(handler!).toContain('taps>=TAPS')
-    expect(handler!).toContain('nextSeg()')
+    expect(js).toContain("tapdot.addEventListener('click'")
+    const handlers = handlerBodies(js)
+    const down = handlers.find((b) => b.includes('ev.preventDefault()'))
+    expect(down, 'the pointerdown handler is gone').toBeTruthy()
+    expect(down!).toContain('hit()')
+    const click = handlers.find((b) => b.includes('ev.detail'))
+    expect(click, 'the click handler is not guarded by the keyboard detail at all').toBeTruthy()
+    expect(click!).toContain('if(ev.detail!==0)return')
+    expect(click!).toContain('hit()')
+    // And both doors open onto one counting path, so they cannot drift apart.
+    const hit = fnBody(js, 'hit')
+    expect(hit).toContain('taps++')
+    expect(hit).toContain('taps>=TAPS')
+    expect(hit).toContain('nextSeg()')
+    expect(js.split('taps++').length - 1, 'taps is counted in more than one place').toBe(1)
+    // The listener being the dot's own is what makes 「点空白处不算」 true by
+    // construction rather than by a hit test.
+    expect(js).not.toMatch(/zone\.addEventListener/)
+  })
+
+  it('starts each segment from a clean slate, so 再来十分钟 is a whole walk again', () => {
+    // 「再来十分钟」 re-enters step 1 at segment a with every counter left
+    // where the last round stopped unless each segment resets its own. A
+    // segment b that opened at taps=60 would end on its first dot.
+    const segB = fnBody(js, 'segB')
+    expect(segB).toContain('taps=0')
+    expect(segB).toContain('onB=-1')
+    // And the dot pending from the round before, which would otherwise
+    // reappear on top of the new one.
+    expect(segB).toContain('clearTimeout(gap)')
+    expect(segB).toContain('kb=false')
+
+    expect(fnBody(js, 'segC')).toContain('said=0')
+
+    const segD = fnBody(js, 'segD')
+    expect(segD).toContain('beats=0')
+    expect(segD).toContain('onD=-1')
+    expect(segD).toContain("beat.style.transform=''")
+
+    // The breath word too: without this the phase caption keeps whatever it
+    // last said and never repaints until the breath crosses over.
+    expect(fnBody(js, 'segE')).toContain("lastWord=''")
+  })
+
+  it('never lets 再来十分钟 start a second rAF loop on top of the first', () => {
+    // Two loops means two clocks against the one backstop and a beat that
+    // ticks twice a beat. The guard has to sit after the re-entry — the walk
+    // must restart at segment a either way — and before the frame request.
+    const startSegs = fnBody(js, 'startSegs')
+    expect(startSegs).toContain('if(running)return')
+    expect(startSegs).toContain('enterSeg(0)')
+    expect(startSegs.indexOf('enterSeg(0)')).toBeLessThan(startSegs.indexOf('if(running)return'))
+    expect(startSegs.indexOf('if(running)return')).toBeLessThan(startSegs.indexOf('requestAnimationFrame'))
+    expect(startSegs).toContain('t0=0')
+  })
+
+  it('drops the pending dot when segment b runs out of time rather than out of dots', () => {
+    // The 150s exit is the one that can leave a setTimeout in flight. Left
+    // running, it un-hides the dot behind a segment nobody is looking at, and
+    // it is still there when the next round arrives.
+    const tickB = fnBody(js, 'tickB')
+    expect(tickB).toContain('el>=TAPMS')
+    expect(tickB).toContain('clearTimeout(gap)')
+    expect(tickB.indexOf('clearTimeout(gap)')).toBeLessThan(tickB.indexOf('nextSeg()'))
   })
 
   it('carries each segment own limits as one number each, and the 15-minute backstop', () => {
@@ -680,14 +749,42 @@ describe('the page script', () => {
     expect(frame.indexOf('CAP')).toBeLessThan(frame.indexOf("key==='b'"))
   })
 
-  it('replaces the beating dot with a counted line for a reader who asked for stillness', () => {
+  it('takes the beat dot and its instruction away together whenever there is nothing to follow', () => {
+    // Two cases, and they have to behave the same way. Reduced motion, where
+    // nothing may move. And an uncounted body task (深夜加餐's 刷牙), where
+    // tickD writes no transform at all — so a dot left on screen would sit
+    // frozen under 「跟着它。」 for the whole ninety seconds, which is exactly
+    // the passive thing this version of step 1 exists to get rid of.
     expect(js).toContain("window.matchMedia('(prefers-reduced-motion: reduce)')")
     const segD = fnBody(js, 'segD')
-    expect(segD).toContain('beatwrap.hidden=calm')
+    expect(segD).toContain('beatwrap.hidden=calm||!COUNTED')
+    expect(segD).toContain('follow.hidden=calm||!COUNTED')
+    // The count is the replacement, and only where there is something to
+    // count: an uncounted task has no beat number to show either.
     expect(segD).toContain('nth.hidden=!(calm&&COUNTED)')
-    // And the scale is not written at all in that case — the dot is gone, so
-    // a transform on it would be work nobody sees.
-    expect(fnBody(js, 'tickD')).toContain("if(!calm)beat.style.transform='scale('")
+    // And the scale is not written when the dot is not there — a transform on
+    // a hidden element is work nobody sees.
+    const tickD = fnBody(js, 'tickD')
+    expect(tickD).toContain("if(!calm)beat.style.transform='scale('")
+    expect(tickD.indexOf('beat.style.transform')).toBeGreaterThan(tickD.indexOf('COUNTED'))
+  })
+
+  it('renders the beat dot and the 跟着它 hint as elements the script can take away', async () => {
+    // Structural half of the test above: workerd has no DOM, so what can be
+    // checked here is that both are addressable and start visible — the
+    // script hides them on entry to segment d, not the markup.
+    const h = await html({ ...user, surf_scene: 'snack' })
+    expect(h).toContain('<div class="beatwrap" id="beatwrap">')
+    expect(h).toContain('<p class="hint" id="follow">跟着它。</p>')
+    expect(h).not.toMatch(/id="beatwrap"[^>]*hidden/)
+    expect(h).not.toMatch(/id="follow"[^>]*hidden/)
+    // The uncounted scene is the one that needs them gone, and it is the
+    // config island that tells the script so.
+    expect(h).toContain('"bodyMs":90000')
+    // Segment b's own hint is the dot's label read twice over, so it is
+    // hidden from assistive technology rather than repeated into it.
+    expect(h).toContain('<p class="hint" aria-hidden="true">点它。</p>')
+    expect(h).toContain('aria-label="点它。"')
   })
 
   it('runs segment d by beats, or by the clock for a body task with nothing to count', () => {
