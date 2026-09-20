@@ -94,9 +94,22 @@ export async function listUrgesSince(db: D1Database, userId: number, fromTs: num
   return res.results
 }
 
-/** `raw = null` clears the column back to NULL, i.e. back to the built-in four triggers. */
-export async function setUserSurfTriggers(db: D1Database, userId: number, raw: string | null): Promise<void> {
-  await db.prepare('UPDATE users SET surf_triggers = ?2 WHERE id = ?1').bind(userId, raw).run()
+/**
+ * The whole of /surf/setup's answer, written in one statement: which scene,
+ * and the optional line. Both columns move together because the form posts
+ * them together — a scene saved without clearing a line that no longer
+ * belongs to it is the kind of half-write that only shows up months later.
+ *
+ * `line = null` is 「没写」. The scoping column on `users` is its own `id`,
+ * same as `setUserLocale` and `setUserTodayGoals` two files over.
+ */
+export async function setUserSurfScene(
+  db: D1Database,
+  userId: number,
+  scene: string | null,
+  line: string | null,
+): Promise<void> {
+  await db.prepare('UPDATE users SET surf_scene = ?2, surf_line = ?3 WHERE id = ?1').bind(userId, scene, line).run()
 }
 
 // --- summarizeUrges ----------------------------------------------------------

@@ -84,10 +84,9 @@ describe('empty state', () => {
  *   TODAY                               — 2 opened, 1 passed,
  *                                         1 unfinished.             n3 op
  *
- * States: tired x5, hungry x3, angry x2, lonely x1, none x0 (must not
- * render). Triggers: a default chip x4, a custom one carrying `<b>` x3 (must
- * come out escaped), and `''` (no trigger picked) x4, which must never reach
- * the triggers card at all.
+ * The rows still carry a `state` and a `trigger` — historical rows do, and
+ * `summarizeUrges` still tallies both — but no card renders either one any
+ * more, which is what the two-card assertion below pins.
  */
 async function setupScenario(): Promise<void> {
   const CUSTOM = '自定义<b>触发</b>'
@@ -184,35 +183,27 @@ describe('with data', () => {
     for (const b of untouched) expect(b).toBe('<i class="bar" style="--h:0.00">')
   })
 
-  it('lists the five body states, count descending, zero states omitted', async () => {
+  it('carries exactly two cards — the body and trigger tallies are gone with the questions that fed them', async () => {
     await setupScenario()
     const main = mainOf(await render())
-    expect(main).toContain('<li><span>累</span><span class="num">5</span></li>')
-    expect(main).toContain('<li><span>饿</span><span class="num">3</span></li>')
-    expect(main).toContain('<li><span>烦</span><span class="num">2</span></li>')
-    expect(main).toContain('<li><span>孤独</span><span class="num">1</span></li>')
-    expect(main).not.toContain('都不是')
-    // Order: 累 (5) before 饿 (3) before 烦 (2) before 孤独 (1).
-    expect(main.indexOf('累')).toBeLessThan(main.indexOf('饿'))
-    expect(main.indexOf('饿')).toBeLessThan(main.indexOf('烦'))
-    expect(main.indexOf('烦')).toBeLessThan(main.indexOf('孤独'))
-  })
-
-  it('lists triggers count descending, escapes free text, and drops the empty (其他) bucket', async () => {
-    await setupScenario()
-    const main = mainOf(await render())
-    expect(main).toContain('<li><span>躺床上刷手机</span><span class="num">4</span></li>')
-    expect(main).toContain('<li><span>自定义&lt;b&gt;触发&lt;/b&gt;</span><span class="num">3</span></li>')
-    expect(main).not.toContain('<b>触发</b>')
-    expect(main.indexOf('躺床上刷手机')).toBeLessThan(main.indexOf('自定义'))
+    expect(main.match(/<section class="card">/g)).toHaveLength(2)
+    expect(main).toContain('<h2>三十天</h2>')
+    expect(main).toContain('<h2>几点</h2>')
+    expect(main).not.toContain('<h2>身体</h2>')
+    expect(main).not.toContain('<h2>引子</h2>')
+    // Nothing of either tally survives as a stray row, and the account's own
+    // scene text — which a trigger row would have printed — is not on the
+    // page at all.
+    expect(main).not.toContain('<ul class="sl">')
+    expect(main).not.toContain('自定义')
+    expect(main).not.toContain('躺床上刷手机')
   })
 
   it('renders in English with no residual Chinese and no Chinese punctuation', async () => {
-    // A scenario built only from things that have an English translation —
-    // states and the one built-in trigger chip. setupScenario()'s custom
-    // trigger ('自定义<b>触发</b>') is deliberately not one of those (an
-    // account's own free text is never machine-translated), so it is left
-    // out here rather than making this test tolerate residual Chinese.
+    // Nothing on this page prints a row's own `trigger` any more, so a
+    // scenario carrying an account's untranslatable free text is no longer a
+    // reason for Chinese to survive an English render — the assertion below
+    // is absolute.
     await urge({ userId: user.id, state: 'tired', trigger: '躺床上刷手机', date: addDays(TODAY, -1) }, 'passed')
     await urge({ userId: user.id, state: 'hungry', trigger: '', date: TODAY }, 'opened')
     await urge({ userId: user.id, state: 'hungry', trigger: '', date: TODAY }, null)
@@ -221,7 +212,6 @@ describe('with data', () => {
     expect(main).toContain('Passed 1')
     expect(main).toContain('Opened it 1')
     expect(main).toContain('Another 1 were not finished')
-    expect(main).toContain('Lying in bed scrolling')
     expect(main).not.toMatch(/[一-鿿]/)
     expect(main).not.toMatch(/[「」，。！？；：（）]/)
   })

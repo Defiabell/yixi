@@ -43,6 +43,7 @@ import schemeRaw from '../src/scheme.ts?raw'
 import schemesRaw from '../src/schemes.ts?raw'
 import snapshotRaw from '../src/snapshot.ts?raw'
 import statsRaw from '../src/stats.ts?raw'
+import surfscenesRaw from '../src/surfscenes.ts?raw'
 import turnstileRaw from '../src/turnstile.ts?raw'
 import typesRaw from '../src/types.ts?raw'
 import urgesRaw from '../src/urges.ts?raw'
@@ -477,6 +478,7 @@ export const CONVERTED: string[] = [
   'src/ui/surf.ts',
   'src/ui/surfreview.ts',
   'src/ui/surfsetup.ts',
+  'src/surfscenes.ts',
 ]
 
 /** Raw source for each CONVERTED path, keyed the same way. */
@@ -501,6 +503,7 @@ const SOURCES: Record<string, string> = {
   'src/ui/surf.ts': uiSurfRaw,
   'src/ui/surfreview.ts': uiSurfreviewRaw,
   'src/ui/surfsetup.ts': uiSurfsetupRaw,
+  'src/surfscenes.ts': surfscenesRaw,
   'src/ui/onboarding.ts': uiOnboardingRaw,
 }
 
@@ -538,6 +541,7 @@ const ALL_SOURCES: Record<string, string> = {
   'src/scheme.ts': schemeRaw,
   'src/snapshot.ts': snapshotRaw,
   'src/stats.ts': statsRaw,
+  'src/surfscenes.ts': surfscenesRaw,
   'src/turnstile.ts': turnstileRaw,
   'src/types.ts': typesRaw,
   'src/urges.ts': urgesRaw,
@@ -576,7 +580,7 @@ const ALL_SOURCES: Record<string, string> = {
  * must also bump this number in the same diff, or "guard rail: ALL_SOURCES
  * count" below goes red. Bump both together.
  */
-const ALL_SOURCES_EXPECTED_COUNT = 42
+const ALL_SOURCES_EXPECTED_COUNT = 43
 
 describe('guard rail: ALL_SOURCES has not silently drifted from its pinned count', () => {
   it('covers exactly as many files as it is pinned to', () => {

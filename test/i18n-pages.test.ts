@@ -757,50 +757,48 @@ describe('/setup in English', () => {
 // ============================================================================
 
 describe('/surf in English', () => {
-  async function surfHtml(en = true): Promise<string> {
-    return await (await handleSurf(new Request(`${BASE}/surf`, { headers: headers(en) }), env, user)).text()
+  async function surfHtml(en = true, u: User = user): Promise<string> {
+    return await (await handleSurf(new Request(`${BASE}/surf`, { headers: headers(en) }), env, u)).text()
   }
 
-  it('declares the language and translates step 0, defaults included', async () => {
-    const html = await surfHtml()
+  it('declares the language and translates the opening screen', async () => {
+    const html = await surfHtml(true, { ...user, surf_scene: 'feed' })
     expect(html).toContain('<html lang="en">')
     expect(html).toContain('<title>Surf · 一息</title>')
     const main = inside(html, '<main class="flow">')
     expect(main).toContain('<h1>An urge came.</h1>')
-    expect(main).toContain('Right now, which one is the body?')
-    expect(main).toContain('What brought it here?')
-    for (const label of ['Hungry', 'On edge', 'Lonely', 'Tired', 'None of these', 'Something else']) {
-      expect(main, label).toContain(label)
-    }
-    // No triggers were configured for this account, so /surf falls back to
-    // the four built-in ones, and those have to translate too — not just
-    // whatever an account typed for itself.
-    for (const label of [
-      'Lying in bed scrolling',
-      'Alone at home with nothing to do',
-      'Saw something on a screen',
-      'Feeling low',
+    expect(main).toContain('The fingers want to move. You do not want to watch.')
+    expect(main).toContain('Put the phone down and go to another room. Tap again when you are back.')
+    expect(main).toContain('I am up')
+    expect(main).not.toMatch(CHINESE_PUNCT)
+  })
+
+  it('translates the scene tips, the ones on the page and the ones in the config island alike', async () => {
+    const html = await surfHtml(true, { ...user, surf_scene: 'snack' })
+    for (const tip of [
+      'Drink a glass of warm water.',
+      'Brush your teeth.',
+      'Turn off the light and lie down for ten minutes.',
     ]) {
-      expect(main, label).toContain(label)
+      expect(html, tip).toContain(tip)
     }
+  })
+
+  it('translates the neutral default for an account that never picked a scene, and its setup link', async () => {
+    const main = inside(await surfHtml(), '<main class="flow">')
+    expect(main).toContain('It will pass.')
+    expect(main).toContain('Tell me which one this is first')
     expect(main).not.toMatch(CHINESE_PUNCT)
   })
 
   it('translates the remaining steps, the parting lines and the noscript fallback', async () => {
     const html = await surfHtml()
     const main = inside(html, '<main class="flow">')
-    expect(main).toContain('Put the phone down and go to another room.')
-    expect(main).toContain('Tap again when you are back.')
-    expect(main).toContain('I am up')
-    expect(main).toContain('Twenty squats.')
     expect(main).toContain('Ten minutes.')
     expect(main).toContain('It passed')
     expect(main).toContain('Still there')
     expect(main).toContain('Another ten minutes')
     expect(main).toContain('I opened it')
-    expect(main).toContain('Which step would you change next time?')
-    expect(main).toContain('Note it')
-    expect(main).toContain('Skip it')
     expect(main).toContain('Again')
     expect(html).toContain('This page needs JavaScript. Go back to the home screen and open it again.')
     expect(main).not.toMatch(CHINESE_PUNCT)
@@ -829,40 +827,38 @@ describe('/surf/review in English', () => {
     }
   })
 
-  it('translates every section, the counts and the trigger names', async () => {
-    const passed = await createUrge(env.DB, { userId: 1, state: 'tired', trigger: '躺床上刷手机', now: NOW })
+  it('translates both cards and the counts', async () => {
+    const passed = await createUrge(env.DB, { userId: 1, state: '', trigger: 'lust', now: NOW })
     await finishUrge(env.DB, 1, passed, 'passed', NOW)
-    const opened = await createUrge(env.DB, { userId: 1, state: 'hungry', trigger: '', now: NOW })
+    const opened = await createUrge(env.DB, { userId: 1, state: '', trigger: '', now: NOW })
     await finishUrge(env.DB, 1, opened, 'opened', NOW)
 
     const html = await (await renderSurfReview(new Request(`${BASE}/surf/review`, { headers: EN }), env, user)).text()
     const main = mainOf(html)
     expect(main).toContain('<h2>30 days</h2>')
     expect(main).toContain('<h2>Time of day</h2>')
-    expect(main).toContain('<h2>Body</h2>')
-    expect(main).toContain('<h2>Triggers</h2>')
     expect(main).toContain('Surfed 2 times in 30 days')
     expect(main).toContain('Passed 1')
     expect(main).toContain('Opened it 1')
-    expect(main).toContain('Tired')
-    expect(main).toContain('Hungry')
-    // The account never typed a trigger of its own here — this exercises one
-    // of the four built-in chips translating on /surf/review same as on /surf.
-    expect(main).toContain('Lying in bed scrolling')
     expect(main).not.toMatch(CHINESE_PUNCT)
   })
 })
 
 describe('/surf/setup in English', () => {
-  it('translates the form, the length rule and the two entry points', async () => {
+  it('translates the form, the five scenes and the two entry points', async () => {
     const html = await (await handleSurfSetup(new Request(`${BASE}/surf/setup`, { headers: EN }), env, user)).text()
 
     expect(html).toContain('<html lang="en">')
     const main = mainOf(html)
     expect(main).toContain('<h1>Guide</h1>')
     expect(main).toContain(
-      'When an urge comes, the first step is naming where it came from. Write your own triggers, one per line, up to eight. Leave it blank to use the defaults.',
+      'You pick once. After that, an urge means you open this and the flow starts, with nothing left to answer.',
     )
+    for (const label of ['Lust', 'Short video', 'Games', 'Late-night eating', 'Something else']) {
+      expect(main, label).toContain(`<span>${label}</span>`)
+    }
+    expect(main).toContain('Write your own')
+    expect(main).toContain('One line for yourself in that moment')
     expect(main).toContain('>Save</button>')
     expect(main).toContain('<h2>Access</h2>')
     expect(main).toContain(
@@ -877,18 +873,6 @@ describe('/surf/setup in English', () => {
     for (const label of ['Surf', 'Review', 'Guide', 'Account']) {
       expect(nav![1]).toContain(`<span class="lb">${label}</span>`)
     }
-  })
-
-  it('prefills the built-in triggers translated, when the account has none of its own', async () => {
-    const html = await (await handleSurfSetup(new Request(`${BASE}/surf/setup`, { headers: EN }), env, user)).text()
-    const main = mainOf(html)
-    // The textarea's own value is what a form round-trips, not display copy —
-    // but with no account triggers stored, /surf/setup falls back to the
-    // translated defaults same as /surf's own chips do.
-    expect(main).toContain('Lying in bed scrolling')
-    expect(main).toContain('Alone at home with nothing to do')
-    expect(main).toContain('Saw something on a screen')
-    expect(main).toContain('Feeling low')
   })
 })
 
@@ -986,7 +970,7 @@ describe('with no language header at all, nothing changed', () => {
     const surf = await (await handleSurf(new Request(`${BASE}/surf`), env, user)).text()
     expect(surf).toContain('<html lang="zh-Hans">')
     expect(surf).toContain('<h1>冲动来了。</h1>')
-    expect(surf).toContain('躺床上刷手机')
+    expect(surf).toContain('它会过去的。')
     expect(surf).not.toContain('<header>')
 
     const review = await (await renderSurfReview(req('/surf/review', false), env, user)).text()
@@ -997,7 +981,7 @@ describe('with no language header at all, nothing changed', () => {
     const setup = await (await handleSurfSetup(req('/surf/setup', false), env, user)).text()
     expect(setup).toContain('<html lang="zh-Hans">')
     expect(setup).toContain('<h1>怎么配</h1>')
-    expect(setup).toContain('躺床上刷手机')
+    expect(setup).toContain('<span>深夜加餐</span>')
   })
 })
 

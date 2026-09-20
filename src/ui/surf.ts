@@ -1,41 +1,43 @@
 // /surf — 「渡」, the ten-minute flow. The third face of the product: not a
 // list to read, a thing to walk through while an urge is passing.
 //
-// Four decisions here are deliberate and must survive future "cleanups":
+// Five decisions here are deliberate and must survive future "cleanups":
 //
-//  1. ONE document, five steps. Every step is server-rendered into the same
+//  0. ZERO CHOICES IN THE FLOW. The only interaction this page offers while an
+//     urge is on somebody is a button that moves them forward — no chips, no
+//     tags, no options, no typing. Choosing costs energy, and that energy is
+//     exactly what the urge is competing for. Everything personal (which
+//     scene, which line) was decided once at /surf/setup and is rendered in
+//     from `users.surf_scene`; this page never asks. The one real decision
+//     left is step 2's 「过去了」/「还想」, which is the product itself.
+//  1. ONE document, four steps. Every step is server-rendered into the same
 //     HTML and switched by `body[data-step]`; no step costs a round trip. The
 //     page is opened at the exact moment somebody is reaching for a
-//     distraction, often on a bad connection — a spinner between step 1 and
-//     step 2 is where the flow would be lost.
-//  2. No numeric countdown on step 2, and no skip button. Progress is a ring,
+//     distraction, often on a bad connection — a spinner between step 0 and
+//     step 1 is where the flow would be lost.
+//  2. No numeric countdown on step 1, and no skip button. Progress is a ring,
 //     because a number invites you to stare at it and tick it down, which is
 //     the opposite of the point (the same reasoning as breathe.ts).
-//  3. Step 3's asymmetry: 「过去了」 is loud and immediate, 「还想」 arrives
+//  3. Step 2's asymmetry: 「过去了」 is loud and immediate, 「还想」 arrives
 //     800ms later as a small underlined link, and only then offers its own two
 //     ways out. Riding it out is meant to be the path of least resistance.
 //     This IS the feature — do not "balance" the buttons.
-//  4. `round`, `finish` and `note` go out through `navigator.sendBeacon` with a
-//     non-awaited `keepalive` fetch behind it, never `await` (CONTRIBUTING §2).
-//     They fire from a page that is about to be closed or backgrounded; an
-//     awaited request is a record that never lands.
+//  4. `start`, `round` and `finish` never block the page. `round` and `finish`
+//     go out through `navigator.sendBeacon` with a non-awaited `keepalive`
+//     fetch behind it, never `await` (CONTRIBUTING §2); `start` fires on load
+//     with a `.then()` for the id the other two address. They fire from a page
+//     that is about to be closed or backgrounded; an awaited request is a
+//     record that never lands.
 //
 // 「我点开了」 is an outcome, not a failure. Nothing on this page is red,
 // nothing congratulates, nothing scolds — opening it is information about the
-// environment, and the one follow-up question asks what to change next time.
+// environment, and the closing line is the same either way.
 
-import type { Env, UrgeState, User } from '../types'
-import { SURF_NOTE_LEN, SURF_ROUND_MS, SURF_TRIGGER_LEN, URGE_STATES, surfTriggers } from '../types'
+import type { Env, User } from '../types'
+import { SURF_ROUND_MS } from '../types'
 import { shanghaiDate } from '../db'
-import {
-  bumpUrgeRound,
-  createUrge,
-  finishUrge,
-  getUrge,
-  listUrgesSince,
-  setUrgeNote,
-  summarizeUrges,
-} from '../urges'
+import { bumpUrgeRound, createUrge, finishUrge, getUrge, listUrgesSince, summarizeUrges } from '../urges'
+import { hasScene, sceneOf, sceneTrigger } from '../surfscenes'
 import { DEFAULT_THEME, escapeHtml, jsonScript, page } from './layout'
 import { EXHALE_MS, INHALE_MS, ORB_CSS, orbHtml } from './breathing'
 import { SURF_PWA_HEAD } from './pwa'
@@ -103,21 +105,6 @@ function ok(payload: Record<string, unknown>): Response {
   })
 }
 
-function isState(raw: string): raw is UrgeState {
-  return (URGE_STATES as readonly string[]).includes(raw)
-}
-
-/**
- * '' is 「没选」 and is allowed — somebody can tap a trigger chip and nothing
- * else. `null` means the value is neither empty nor one of the five, which is
- * a bug in our own script rather than a shape to guess at, and the caller
- * answers it with a 400.
- */
-function readState(raw: string): UrgeState | '' | null {
-  if (raw === '') return ''
-  return isState(raw) ? raw : null
-}
-
 async function handlePost(request: Request, env: Env, user: User): Promise<Response> {
   let form: FormData
   try {
@@ -134,13 +121,12 @@ async function handlePost(request: Request, env: Env, user: User): Promise<Respo
   const asJson = request.headers.get('x-yixi') === 'fetch'
 
   if (op === 'start') {
-    const state = readState(field(form, 'state'))
-    if (state === null) return bad()
-    // The trigger is free text the account typed at /surf/setup, so it is cut
-    // to length here rather than refused: this POST fires from inside the
-    // flow, and a 400 would strand somebody mid-urge over a long chip label.
-    const trigger = field(form, 'trigger').slice(0, SURF_TRIGGER_LEN)
-    const id = await createUrge(env.DB, { userId: user.id, state, trigger, now })
+    // No fields. The client has nothing to say here and is not asked for
+    // anything: the scene was chosen at /surf/setup, so the row's `trigger`
+    // comes off the account rather than off a form the flow would have had to
+    // show somebody. `state` is the body question v1 asked and v2 does not.
+    const trigger = sceneTrigger(user)
+    const id = await createUrge(env.DB, { userId: user.id, state: '', trigger, now })
     return asJson ? ok({ id }) : back()
   }
 
@@ -168,19 +154,6 @@ async function handlePost(request: Request, env: Env, user: User): Promise<Respo
     return asJson ? ok({ ok: true, changed }) : back()
   }
 
-  if (op === 'note') {
-    const id = intId(field(form, 'id'))
-    if (id === null) return bad()
-    const note = field(form, 'note')
-    // Unlike `trigger`, this one is refused rather than cut: the note is the
-    // person's own sentence, and silently losing its ending is worse than
-    // saying no to a body only our own script can produce (the input carries
-    // maxlength, so reaching this is already a client that went around it).
-    if (note.length > SURF_NOTE_LEN) return bad()
-    if (!(await setUrgeNote(env.DB, user.id, id, note))) return notFound()
-    return asJson ? ok({ ok: true }) : back()
-  }
-
   return bad()
 }
 
@@ -200,6 +173,8 @@ async function render(request: Request, env: Env, user: User, loc: Locale, t: T)
   const ua = request.headers.get('user-agent') ?? ''
   const iphoneSafari = /iPhone/.test(ua) && /Safari/.test(ua) && inAppBrowserOf(request) === null
 
+  const { scene } = sceneOf(user)
+
   // Every string the script shows travels in this island, never in the script
   // itself: one constant, the same bytes in both languages.
   const cfg = {
@@ -207,10 +182,9 @@ async function render(request: Request, env: Env, user: User, loc: Locale, t: T)
     inhale: INHALE_MS,
     exhale: EXHALE_MS,
     tipMs: TIP_MS,
-    noteMax: SURF_NOTE_LEN,
     inhaleWord: t('吸气'),
     exhaleWord: t('呼气'),
-    tips: tipLines(t),
+    tips: scene.tips.map((tip) => t(tip)),
     fin: farewellLines(t),
     // Which parting line an unrecorded walk-through gets. A hash of the urge
     // id decides it when there is one; with no id (the start POST never
@@ -221,10 +195,9 @@ async function render(request: Request, env: Env, user: User, loc: Locale, t: T)
 
   const body = `<main class="flow">
 ${step0(user, t)}
-${step1(t)}
+${step1(scene.tips[0], t)}
 ${step2(t)}
-${step3(t)}
-${step4(month.days, t)}
+${step3(month.days, t)}
 </main>
 ${iphoneSafari ? banner(t) : ''}
 <noscript><p class="ns">${t('这一页需要 JavaScript。回到主屏幕重新打开就好。')}</p></noscript>
@@ -246,70 +219,42 @@ ${jsonScript('cfg', cfg)}`
   })
 }
 
-/** The three body exits step 2 rotates through, twenty seconds each. */
-function tipLines(t: T): string[] {
-  return [t('二十个深蹲。'), t('冷水洗脸。'), t('出门走五分钟。')]
-}
-
-/** The five body states, in the order the chips are laid out. */
-function stateChips(t: T): Array<[UrgeState, string]> {
-  return [
-    ['hungry', t('饿')],
-    ['angry', t('烦')],
-    ['lonely', t('孤独')],
-    ['tired', t('累')],
-    ['none', t('都不是')],
-  ]
-}
-
 /**
- * Step 0 — noticing. Two questions, one chip each; picking both starts the
- * record and moves on, with no submit button to find.
+ * Step 0 — the whole of the opening. One sentence about this reader's own
+ * scene, their own line if they wrote one, and one button.
  *
- * `data-trigger` carries the SOURCE text (the account's own words, or the zh
- * literal behind a built-in chip), not the translated label: that is what goes
- * into the row, so the same trigger aggregates into one bar on /surf/review
- * whichever language it was picked in.
+ * Nothing here is a question. The record is already being written by the time
+ * this is read: the page script POSTs `start` on load, without waiting for a
+ * tap, so a walk-through that gets abandoned three seconds in still leaves the
+ * row that says an urge happened.
+ *
+ * The link to /surf/setup is the single exception to decision 0 above, and it
+ * only exists for an account that has never been there: without a scene the
+ * copy is the neutral default, and there has to be some way to find out that
+ * it can be their own. Once one is configured the link is gone for good.
  */
 function step0(user: User, t: T): string {
-  const states = stateChips(t)
-    .map((pair) => `<button type="button" class="chip" aria-pressed="false" data-state="${pair[0]}">${pair[1]}</button>`)
-    .join('')
-  const triggers = surfTriggers(user)
-    .map(
-      (source) =>
-        `<button type="button" class="chip" aria-pressed="false" data-trigger="${escapeHtml(source)}">${escapeHtml(t(source))}</button>`,
-    )
-    .join('')
+  const { scene } = sceneOf(user)
+  const own = typeof user.surf_line === 'string' ? user.surf_line.trim() : ''
   return `<section class="step" data-step="0">
 <h1>${t('冲动来了。')}</h1>
-<p class="q">${t('此刻，身体是哪一种？')}</p>
-<div class="chips">${states}</div>
-<p class="q">${t('是什么把它引来的？')}</p>
-<div class="chips">${triggers}<button type="button" class="chip" aria-pressed="false" data-trigger="">${t('其他')}</button></div>
-</section>`
+<p class="line">${t(scene.opening)}</p>
+${own === '' ? '' : `<p class="line own">${escapeHtml(own)}</p>\n`}<button type="button" class="stop" id="up">${t('我起来了')}</button>
+<p class="a2">${t('放下手机，去另一个房间。回来再点。')}</p>
+${hasScene(user) ? '' : `<a class="linky" href="/surf/setup">${t('先告诉我这是哪一种')} ›</a>\n`}</section>`
 }
 
-/** Step 1 — stand up. The whole point is to be somewhere else holding nothing. */
-function step1(t: T): string {
+/** Step 1 — the ten minutes. No number, no skip; the ring is the only clock. */
+function step1(firstTip: string, t: T): string {
   return `<section class="step" data-step="1">
-<p class="a1">${t('放下手机，去另一个房间。')}</p>
-<p class="a2">${t('回来再点。')}</p>
-<button type="button" class="stop" id="up">${t('我起来了')}</button>
+${orbHtml(t)}
+<p class="tip" id="tip">${t(firstTip)}</p>
 </section>`
 }
 
-/** Step 2 — the ten minutes. No number, no skip; the ring is the only clock. */
+/** Step 2 — deciding again. See decision 3 at the top of this file. */
 function step2(t: T): string {
   return `<section class="step" data-step="2">
-${orbHtml(t)}
-<p class="tip" id="tip">${tipLines(t)[0]}</p>
-</section>`
-}
-
-/** Step 3 — deciding again. See decision 3 at the top of this file. */
-function step3(t: T): string {
-  return `<section class="step" data-step="3">
 <p class="a1">${t('十分钟了。')}</p>
 <button type="button" class="stop" id="passed">${t('过去了')}</button>
 <button type="button" class="go" id="still" hidden>${t('还想')}</button>
@@ -321,25 +266,19 @@ function step3(t: T): string {
 }
 
 /**
- * Step 4 — the end. A parting line, the one optional question, and this
- * month's dots.
+ * Step 3 — the end. A parting line and this month's dots, and nothing to
+ * answer: v1 asked 「下次哪一步换成什么？」 here, and typing is a choice like
+ * any other, made at the one moment somebody has least to spend on it.
  *
  * The dots are rendered here rather than fetched: the row for the walk-through
  * that just ended is written by a beacon whose answer nobody waits for, so the
  * client paints today's dot itself from what it knows.
  */
-function step4(days: Array<{ total: number; opened: number }>, t: T): string {
+function step3(days: Array<{ total: number; opened: number }>, t: T): string {
   const dots = days.map((d) => `<i class="d n${Math.min(3, d.total)}${d.opened > 0 ? ' op' : ''}"></i>`).join('')
-  return `<section class="step" data-step="4">
+  return `<section class="step" data-step="3">
 <p class="a1" id="fin"></p>
 <p class="a2" id="lost" hidden>${t('这一次没记上。')}</p>
-<div class="note" id="noteWrap" hidden>
-<input id="note" type="text" maxlength="${SURF_NOTE_LEN}" autocomplete="off" enterkeyhint="done" placeholder="${escapeHtml(t('下次哪一步换成什么？'))}">
-<div class="noteact">
-<button type="button" class="stop" id="noteSave">${t('记下')}</button>
-<button type="button" class="go" id="noteSkip">${t('不写了')}</button>
-</div>
-</div>
 <div class="month" id="month">${dots}</div>
 <a class="linky" href="/surf">${t('再来一次')}</a>
 </section>`
@@ -387,21 +326,13 @@ const SURF_CSS = `
 body[data-step="0"] .step[data-step="0"],
 body[data-step="1"] .step[data-step="1"],
 body[data-step="2"] .step[data-step="2"],
-body[data-step="3"] .step[data-step="3"],
-body[data-step="4"] .step[data-step="4"]{display:flex}
+body[data-step="3"] .step[data-step="3"]{display:flex}
 
 .step h1{margin:0 0 1.8rem;font-size:1.5rem;font-weight:500;letter-spacing:.14em;text-indent:.14em}
-.q{margin:0 0 .9rem;font-size:.95rem;color:var(--dim);letter-spacing:.1em;text-indent:.1em}
-.q+.chips{margin-bottom:2.2rem}
-.chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:22rem}
-.chip{
-  min-height:44px;padding:0 18px;border-radius:999px;
-  border:1px solid var(--rule);color:var(--dim);
-  font-size:1rem;letter-spacing:.06em;text-indent:.06em;
-  transition:background .2s ease,color .2s ease;
-}
-.chip.on{background:var(--stop-bg);color:var(--stop-fg);border-color:var(--stop-border)}
-.chip:active{opacity:.72}
+/* The scene's one sentence, and under it whatever the reader wrote for
+   themselves — a step quieter, so the two do not compete. */
+.line{margin:0;max-width:20rem;font-size:1.06rem;line-height:2;color:var(--dim);letter-spacing:.1em;text-indent:.1em}
+.line.own{margin-top:.9rem;color:var(--faint);font-size:.98rem}
 
 .a1{margin:0;font-size:1.22rem;line-height:2;color:var(--fg);letter-spacing:.12em;text-indent:.12em}
 .a2{margin:.2rem 0 0;font-size:.9rem;color:var(--faint);letter-spacing:.1em;text-indent:.1em}
@@ -421,14 +352,6 @@ body[data-step="4"] .step[data-step="4"]{display:flex}
 .more{display:flex;flex-direction:column;align-items:center}
 
 .tip{margin:2.4rem 0 0;font-size:1rem;color:var(--dim);letter-spacing:.12em;text-indent:.12em}
-
-.note{display:flex;flex-direction:column;align-items:center;width:100%;max-width:20rem;margin-top:1.8rem}
-.note input{
-  width:100%;font:inherit;font-size:16px;padding:12px 14px;text-align:center;
-  color:var(--fg);background:transparent;border:1px solid var(--rule);border-radius:12px;
-}
-.noteact{display:flex;flex-direction:column;align-items:center}
-.noteact .stop{margin-top:1.4rem;padding:.85rem 2.6rem;font-size:1rem}
 
 /* One dot per day so far this month: darker with the day's count, ringed when
    something was opened. No streak, no gap counter — those are the same claim
@@ -450,26 +373,30 @@ a.linky{margin-top:2.4rem;min-height:44px;padding:11px 0;color:var(--dim);font-s
 .a2hs p{margin:0;flex:1}
 .a2hs button.linky{color:var(--dim);font-size:14px;text-decoration:underline;text-underline-offset:3px;padding:11px 0;min-height:44px}
 /* The ten minutes are not the moment to sell an icon. */
-body[data-step="1"] .a2hs,body[data-step="2"] .a2hs,body[data-step="3"] .a2hs{display:none}
+body[data-step="1"] .a2hs,body[data-step="2"] .a2hs{display:none}
 
 @media (prefers-reduced-motion:reduce){
   .ink i{animation:none}
-  .chip{transition-duration:.01ms}
 }
 `
 
 // --- js ----------------------------------------------------------------------
 
 /**
- * The whole flow: five steps, one rAF loop, three beacons.
+ * The whole flow: four steps, one rAF loop, three requests.
  *
- * WHY NOTHING IS AWAITED. `round`, `finish` and `note` are sent from a page
- * that may be closed or backgrounded a moment later. sendBeacon hands the
- * request to the browser and returns immediately; the fallback is
+ * WHY START FIRES ON LOAD. The row is opened the moment the page is, not when
+ * somebody taps: an urge that was interrupted by closing the tab is still an
+ * urge that happened, and asking for a tap first would have made the record
+ * conditional on the one thing this page refuses to ask for. It is a `.then()`
+ * rather than an `await` — the id it returns is what the other two requests
+ * address, and nothing on screen waits for it.
+ *
+ * WHY NOTHING IS AWAITED. `round` and `finish` are sent from a page that may
+ * be closed or backgrounded a moment later. sendBeacon hands the request to
+ * the browser and returns immediately; the fallback is
  * `fetch(..., {keepalive:true})` NOT awaited. An `await` anywhere in here is
  * the shape of a record that silently never lands. CONTRIBUTING section 2.
- * `start` is the one exception and it is a `.then()`, not an `await`: the id it
- * returns is what the other three address, and nothing navigates on that tap.
  *
  * WHY THE rAF TIMESTAMP AND NOT A COUNTER. The ten minutes are measured as
  * `now - t0` inside one requestAnimationFrame loop, `now` being the timestamp
@@ -489,7 +416,6 @@ var root=document.documentElement,doc=document.body;
 var ring=document.getElementById('ring'),phase=document.getElementById('phase'),tip=document.getElementById('tip');
 var still=document.getElementById('still'),more=document.getElementById('more');
 var fin=document.getElementById('fin'),lost=document.getElementById('lost');
-var noteWrap=document.getElementById('noteWrap'),note=document.getElementById('note');
 var month=document.getElementById('month');
 
 var C=2*Math.PI*112;
@@ -499,17 +425,17 @@ ring.style.strokeDashoffset=String(C);
 var calm=false;
 try{calm=window.matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){}
 
-var urgeId=null,state=null,trigger=null,settled=false;
+var urgeId=null,settled=false;
 var t0=0,running=false,lastWord='',lastTip=-1,pending=0;
 
 function go(n){
-  // The 800ms reveal belongs to step 3 alone. Left running, it un-hides
+  // The 800ms reveal belongs to step 2 alone. Left running, it un-hides
   // 「还想」 behind a section nobody is looking at any more, and the next
-  // pass through step 3 would then start with both halves already showing.
-  if(n!==3&&pending){clearTimeout(pending);pending=0}
+  // pass through step 2 would then start with both halves already showing.
+  if(n!==2&&pending){clearTimeout(pending);pending=0}
   doc.setAttribute('data-step',String(n));
-  if(n===2)startRing();
-  if(n===3)reveal();
+  if(n===1)startRing();
+  if(n===2)reveal();
 }
 
 function startRing(){
@@ -539,7 +465,7 @@ function frame(now){
   var prog=Math.min(1,el/ROUND);
   ring.style.strokeDashoffset=String(C*(1-prog));
 
-  if(prog>=1){running=false;go(3);return}
+  if(prog>=1){running=false;go(2);return}
   requestAnimationFrame(frame);
 }
 
@@ -558,12 +484,11 @@ function report(params){
 }
 
 function start(){
-  var payload=new URLSearchParams({op:'start',state:state,trigger:trigger});
+  var payload=new URLSearchParams({op:'start'});
   fetch('/surf',{method:'POST',body:payload,headers:{'x-yixi':'fetch'},credentials:'same-origin'})
     .then(function(r){return r.json()})
     .then(function(d){if(d&&typeof d.id==='number')urgeId=d.id})
     .catch(function(){});
-  go(1);
 }
 
 function pick(){
@@ -601,45 +526,22 @@ function finish(outcome){
     report({op:'finish',id:String(urgeId),outcome:outcome});
     bumpToday(outcome);
   }
-  if(outcome==='opened')noteWrap.hidden=false;
-  go(4);
-}
-
-function saveNote(){
-  var v=note.value.trim();
-  if(v&&urgeId!==null)report({op:'note',id:String(urgeId),note:v.slice(0,cfg.noteMax)});
-  noteWrap.hidden=true;
-}
-
-function mark(chip){
-  var group=chip.parentNode.querySelectorAll('.chip'),i;
-  for(i=0;i<group.length;i++){group[i].classList.remove('on');group[i].setAttribute('aria-pressed','false')}
-  chip.classList.add('on');chip.setAttribute('aria-pressed','true');
+  go(3);
 }
 
 document.addEventListener('click',function(ev){
   var el=ev.target;
   if(!el||!el.closest)return;
 
-  var chip=el.closest('.chip');
-  if(chip){
-    if(chip.hasAttribute('data-state'))state=chip.getAttribute('data-state');
-    else trigger=chip.getAttribute('data-trigger');
-    mark(chip);
-    if(state!==null&&trigger!==null)start();
-    return;
-  }
-  if(el.closest('#up')){go(2);return}
+  if(el.closest('#up')){go(1);return}
   if(el.closest('#still')){still.hidden=true;more.hidden=false;return}
   if(el.closest('#again')){
     if(urgeId!==null)report({op:'round',id:String(urgeId)});
-    go(2);
+    go(1);
     return;
   }
   if(el.closest('#passed')){finish('passed');return}
   if(el.closest('#opened')){finish('opened');return}
-  if(el.closest('#noteSave')){saveNote();return}
-  if(el.closest('#noteSkip')){noteWrap.hidden=true;return}
   if(el.closest('#a2hs-x')){
     var box=document.getElementById('a2hs');
     if(box)box.hidden=true;
@@ -654,4 +556,6 @@ if(cfg.a2hs){
   var a2hs=document.getElementById('a2hs');
   if(a2hs&&!standalone&&!seen)a2hs.hidden=false;
 }
+
+start();
 })();`

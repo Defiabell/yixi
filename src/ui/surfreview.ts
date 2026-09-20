@@ -4,7 +4,14 @@
 // (CONSOLE_CSS), zero client JS — every number here is computed server-side
 // by summarizeUrges (src/urges.ts) and injected as plain HTML.
 //
-// The 30-day dot strip deliberately reuses the mark surf.ts's own step-4
+// Two cards, and deliberately only two. 「身体」 and 「引子」 used to sit
+// below them, counting the answers /surf's own step 0 collected — and that
+// step is gone: the flow asks nothing now (see src/ui/surf.ts, decision 0), so
+// there is no honest tally left to draw. `summarizeUrges` still computes both,
+// which costs nothing and keeps the historical rows readable if they are ever
+// wanted again; this page simply does not render them.
+//
+// The 30-day dot strip deliberately reuses the mark surf.ts's own last-step
 // month strip already taught readers: `d n0|n1|n2|n3` for how many urges
 // that day, `op` when at least one was opened. This page adds one modifier
 // neither surf.ts nor progress.ts needed — `uf`, a day where every urge that
@@ -13,9 +20,8 @@
 // to clean up, so it gets its own mark rather than being folded into a plain
 // n-class dot.
 
-import type { Env, UrgeState, User } from '../types'
-import { URGE_STATES } from '../types'
-import { listUrgesSince, summarizeUrges, type UrgeDay, type UrgeSummary } from '../urges'
+import type { Env, User } from '../types'
+import { listUrgesSince, summarizeUrges, type UrgeDay } from '../urges'
 import { shanghaiDate } from '../db'
 import { monthDay } from '../dates'
 import { DEFAULT_THEME, escapeHtml, page } from './layout'
@@ -28,7 +34,7 @@ const REVIEW_DAYS = 30
  * GET-only, per the router: no form on this page, nothing to POST.
  *
  * The window handed to `listUrgesSince` is one day wider than the 30 the
- * summary keeps — the same one-day slack `/surf`'s own step 4 gives itself —
+ * summary keeps — the same one-day slack `/surf`'s own last step gives itself —
  * so the Asia/Shanghai offset can never quietly drop the oldest day of the
  * strip.
  */
@@ -67,8 +73,6 @@ export async function renderSurfReview(request: Request, env: Env, user: User): 
     <div class="hours" aria-label="${t('每小时的冲动次数分布')}">${hourBars(summary.hours)}</div>
     <div class="hourlabels"><span>0</span><span>6</span><span>12</span><span>18</span></div>
   </section>
-  <section class="card"><h2>${t('身体')}</h2>${stateRows(summary, t)}</section>
-  <section class="card"><h2>${t('引子')}</h2>${triggerRows(summary, t)}</section>
 </main>`
 
   return page({
@@ -104,46 +108,6 @@ function hourBars(hours: number[]): string {
   return hours.map((n) => `<i class="bar" style="--h:${max === 0 ? '0' : (n / max).toFixed(2)}"></i>`).join('')
 }
 
-/** The five body-state chips /surf itself offers, same words, same order. */
-function stateLabel(state: UrgeState, t: T): string {
-  switch (state) {
-    case 'hungry':
-      return t('饿')
-    case 'angry':
-      return t('烦')
-    case 'lonely':
-      return t('孤独')
-    case 'tired':
-      return t('累')
-    case 'none':
-      return t('都不是')
-  }
-}
-
-/** One row per non-zero state, count descending; all-zero is its own note. */
-function stateRows(summary: UrgeSummary, t: T): string {
-  const rows = URGE_STATES.map((s) => ({ label: stateLabel(s, t), n: summary.states[s] }))
-    .filter((r) => r.n > 0)
-    .sort((a, b) => b.n - a.n)
-  if (rows.length === 0) return `<p class="note flat">${t('还没有记录。')}</p>`
-  return `<ul class="sl">${rows.map((r) => `<li><span>${escapeHtml(r.label)}</span><span class="num">${r.n}</span></li>`).join('')}</ul>`
-}
-
-/**
- * `summary.triggers` already carries the sort, the cap at 5, and the
- * exclusion of `''` (no trigger picked) — this only turns it into HTML.
- * Escaped because a trigger is the account's own free text (or a built-in
- * chip's zh source, itself just a plain string): `t(tr.trigger)` translates
- * a recognised default, and falls back to the stored text unchanged for
- * anything it does not recognise, same as /surf's own chip labels.
- */
-function triggerRows(summary: UrgeSummary, t: T): string {
-  if (summary.triggers.length === 0) return `<p class="note flat">${t('还没有记录。')}</p>`
-  return `<ul class="sl">${summary.triggers
-    .map((tr) => `<li><span>${escapeHtml(t(tr.trigger))}</span><span class="num">${tr.count}</span></li>`)
-    .join('')}</ul>`
-}
-
 // --- styles -------------------------------------------------------------------
 //
 // Appended to CONSOLE_CSS, which already carries .card/.note/.num/.empty. The
@@ -167,7 +131,4 @@ const SURFREVIEW_CSS = `
 .hours .bar{flex:1;min-width:0;border-radius:2px 2px 1px 1px;background:var(--ring-prog);
   height:calc(4px + var(--h,0) * 40px)}
 .hourlabels{display:flex;justify-content:space-between;font-size:12px;color:var(--faint)}
-ul.sl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0}
-ul.sl li{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--rule)}
-ul.sl li:first-child{border-top:0;padding-top:0}
 `

@@ -1,7 +1,7 @@
 // D1 CRUD for `urges` (see migrations/0010_urges.sql) plus the pure
-// `summarizeUrges` aggregation and the `shanghaiHour` / `surfTriggers` helpers
-// it and the rest of /surf depend on. Same reset() shape as
-// test/goals-db.test.ts: two users, everything scoped by user_id.
+// `summarizeUrges` aggregation and the `shanghaiHour` / scene helpers it and
+// the rest of /surf depend on. Same reset() shape as test/goals-db.test.ts:
+// two users, everything scoped by user_id.
 
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -14,10 +14,10 @@ import {
   getUrge,
   listUrgesSince,
   setUrgeNote,
-  setUserSurfTriggers,
+  setUserSurfScene,
   summarizeUrges,
 } from '../src/urges'
-import { DEFAULT_SURF_TRIGGERS, surfTriggers } from '../src/types'
+import { SCENES, hasScene, sceneOf, sceneTrigger, storedScene } from '../src/surfscenes'
 import type { Urge } from '../src/types'
 
 const NOW = 1_800_000_000_000
@@ -31,11 +31,12 @@ async function reset(): Promise<void> {
 }
 beforeEach(reset)
 
-async function surfTriggersColumn(userId: number): Promise<string | null> {
-  const row = await env.DB.prepare('SELECT surf_triggers FROM users WHERE id = ?1').bind(userId).first<{
-    surf_triggers: string | null
+async function sceneColumns(userId: number): Promise<{ scene: string | null; line: string | null }> {
+  const row = await env.DB.prepare('SELECT surf_scene, surf_line FROM users WHERE id = ?1').bind(userId).first<{
+    surf_scene: string | null
+    surf_line: string | null
   }>()
-  return row ? row.surf_triggers : null
+  return { scene: row ? row.surf_scene : null, line: row ? row.surf_line : null }
 }
 
 /** A full Urge fixture for summarizeUrges tests, which never touch D1. */
@@ -138,53 +139,86 @@ describe('listUrgesSince', () => {
   })
 })
 
-describe('setUserSurfTriggers', () => {
-  it('writes the raw column, and null resets it to the default (no D1 row for the other user touched)', async () => {
-    await setUserSurfTriggers(env.DB, 1, 'a\nb')
-    expect(await surfTriggersColumn(1)).toBe('a\nb')
-    expect(await surfTriggersColumn(2)).toBeNull()
-    expect(surfTriggers({ surf_triggers: await surfTriggersColumn(1) })).toEqual(['a', 'b'])
+describe('setUserSurfScene', () => {
+  it('writes both columns together, and touches no other account', async () => {
+    await setUserSurfScene(env.DB, 1, 'feed', '别把今晚也赔进去')
+    expect(await sceneColumns(1)).toEqual({ scene: 'feed', line: '别把今晚也赔进去' })
+    expect(await sceneColumns(2)).toEqual({ scene: null, line: null })
+  })
 
-    await setUserSurfTriggers(env.DB, 1, null)
-    expect(await surfTriggersColumn(1)).toBeNull()
-    expect(surfTriggers({ surf_triggers: await surfTriggersColumn(1) })).toEqual([...DEFAULT_SURF_TRIGGERS])
+  it('clears the line when the form came back without one, rather than leaving the old one under a new scene', async () => {
+    await setUserSurfScene(env.DB, 1, 'game', '写给那一刻的话')
+    await setUserSurfScene(env.DB, 1, 'snack', null)
+    expect(await sceneColumns(1)).toEqual({ scene: 'snack', line: null })
   })
 
   it('round-trips through getUserById, the shape every request-path User read uses', async () => {
-    await setUserSurfTriggers(env.DB, 1, '躺床上刷手机\n运动后血糖低')
+    await setUserSurfScene(env.DB, 1, storedScene('custom', '打牌'), null)
     const configured = await getUserById(env.DB, 1)
     expect(configured).not.toBeNull()
-    expect(surfTriggers(configured!)).toEqual(['躺床上刷手机', '运动后血糖低'])
+    expect(sceneOf(configured!).scene.key).toBe('custom')
+    expect(sceneOf(configured!).label).toBe('打牌')
+    expect(sceneTrigger(configured!)).toBe('打牌')
 
-    await setUserSurfTriggers(env.DB, 1, null)
-    const reset = await getUserById(env.DB, 1)
-    expect(reset).not.toBeNull()
-    expect(surfTriggers(reset!)).toEqual([...DEFAULT_SURF_TRIGGERS])
+    await setUserSurfScene(env.DB, 1, 'lust', null)
+    const preset = await getUserById(env.DB, 1)
+    expect(sceneOf(preset!).scene).toBe(SCENES.lust)
+    expect(sceneTrigger(preset!)).toBe('lust')
   })
 })
 
-describe('surfTriggers', () => {
-  it('falls back to the built-in four when unset', () => {
-    expect(surfTriggers({ surf_triggers: null })).toEqual([...DEFAULT_SURF_TRIGGERS])
-    expect(surfTriggers({ surf_triggers: undefined })).toEqual([...DEFAULT_SURF_TRIGGERS])
+describe('sceneOf', () => {
+  it('falls back to the custom scene for an account that never configured one', () => {
+    for (const user of [{ surf_scene: null }, { surf_scene: undefined }, { surf_scene: '' }]) {
+      const { scene, label } = sceneOf(user)
+      expect(scene).toBe(SCENES.custom)
+      // Not the empty string: an unconfigured account still has a word for
+      // what this is, and the flow renders whole copy out of it.
+      expect(label).toBe('冲动')
+      expect(hasScene(user)).toBe(false)
+    }
   })
 
-  it('trims whitespace, drops empty lines, and dedupes on the trimmed value', () => {
-    expect(surfTriggers({ surf_triggers: 'a\n\n a \nb' })).toEqual(['a', 'b'])
+  it('resolves each preset key to its own opening and three tips', () => {
+    for (const key of ['lust', 'feed', 'game', 'snack'] as const) {
+      const { scene, label } = sceneOf({ surf_scene: key })
+      expect(scene.key).toBe(key)
+      expect(label).toBe(SCENES[key].label)
+      expect(scene.tips).toHaveLength(3)
+      expect(scene.opening.length).toBeGreaterThan(0)
+      expect(hasScene({ surf_scene: key })).toBe(true)
+    }
+    // No two presets open with the same sentence — the whole point of picking.
+    const openings = new Set(['lust', 'feed', 'game', 'snack'].map((k) => SCENES[k as 'lust'].opening))
+    expect(openings.size).toBe(4)
   })
 
-  it('caps at 8 lines', () => {
-    const lines = Array.from({ length: 10 }, (_, i) => `场景${i}`)
-    expect(surfTriggers({ surf_triggers: lines.join('\n') })).toEqual(lines.slice(0, 8))
+  it("labels a custom scene with the account's own words and trims the prefix", () => {
+    const user = { surf_scene: storedScene('custom', '打牌') }
+    expect(user.surf_scene).toBe('custom:打牌')
+    expect(sceneOf(user).scene).toBe(SCENES.custom)
+    expect(sceneOf(user).label).toBe('打牌')
+    expect(sceneTrigger(user)).toBe('打牌')
+    expect(hasScene(user)).toBe(true)
   })
 
-  it('truncates a single line at 20 characters', () => {
+  it('reads a column it does not recognise as unconfigured rather than throwing', () => {
+    // Whatever already made it into the column — a key we no longer ship, a
+    // bare 'custom' with nothing behind it, leftover v1 trigger text — has to
+    // come back out as a whole page: this is read mid-urge.
+    for (const raw of ['gambling', 'custom', 'custom:   ', '躺床上刷手机']) {
+      const { scene, label } = sceneOf({ surf_scene: raw })
+      expect(scene, raw).toBe(SCENES.custom)
+      expect(label, raw).toBe('冲动')
+      expect(sceneTrigger({ surf_scene: raw }), raw).toBe('')
+      expect(hasScene({ surf_scene: raw }), raw).toBe(false)
+    }
+  })
+
+  it('cuts custom text at 10 characters, the same limit /surf/setup enforces', () => {
     const long = '一'.repeat(30)
-    expect(surfTriggers({ surf_triggers: long })).toEqual([long.slice(0, 20)])
-  })
-
-  it('a blank-only configuration falls back to the default too', () => {
-    expect(surfTriggers({ surf_triggers: '   \n\n  ' })).toEqual([...DEFAULT_SURF_TRIGGERS])
+    expect(sceneOf({ surf_scene: `custom:${long}` }).label).toBe(long.slice(0, 10))
+    expect(sceneTrigger({ surf_scene: `custom:${long}` })).toBe(long.slice(0, 10))
   })
 })
 

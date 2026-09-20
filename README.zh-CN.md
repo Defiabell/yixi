@@ -69,9 +69,9 @@
 | `GET /api/candidates` | 本人 | JSON：输入 App 名字，给出带来源的 scheme 候选。由 `/settings` 和 `/today/goals` 的 URL scheme 字段直接 fetch，不是页面 |
 | `/lookup` `/probe` | —— | 保留为 302 跳 `/settings`。两个都曾是独立页面；找 scheme 和试 scheme 现在长在需要它的那个字段上，旧链接和书签仍然能落到有用的地方 |
 | `/setup` | 本人 | 快捷指令配置向导，印着你自己的地址和 token |
-| `/surf` | 本人 | 「渡」的十分钟流程：冲动来了先辨认，放下手机等它过去，十分钟后再决定一次 |
-| `/surf/review` | 本人 | 「渡」的三十天回看：冲动次数、过去了／点开了的比例、身体状态与引子分布 |
-| `/surf/setup` | 本人 | 编辑「渡」的引子 chip，以及加主屏幕、配快捷指令的入口说明 |
+| `/surf` | 本人 | 「渡」的十分钟流程：放下手机等它过去，十分钟后再决定一次。页面上不问你任何问题 |
+| `/surf/review` | 本人 | 「渡」的三十天回看：冲动次数、过去了／点开了的比例、都几点来的 |
+| `/surf/setup` | 本人 | 选一次场景 |
 | `/account` | 本人 | 看回自己的 gate token、改密码、退出登录 |
 | `/mock?v=1\|2` | 所有人 | 两版呼吸页视觉对比 |
 | `/admin` | owner | 线下发号，看每个人的 attempt 计数 |
@@ -158,7 +158,7 @@ npm run deploy    # 先对远端 D1 apply migration，再发布
 
 migration 只需要跑一次，Pages 那份共用同一个数据库。
 
-**部署一律走 `npm run deploy`，不要直接 `wrangler deploy`**——「先 migration 再发布」这个顺序就是两边不脱节的全部保证。当前版本尤其依赖 `0006_user_locale.sql` 和 `0008_today_goals.sql`：`/gate` 认人的路径上会读 `users.locale` 和 `users.today_goals`，数据库里缺哪一列，Worker 一上去就谁也拦不住了。
+**部署一律走 `npm run deploy`，不要直接 `wrangler deploy`**——「先 migration 再发布」这个顺序就是两边不脱节的全部保证。当前版本尤其依赖 `0006_user_locale.sql`、`0008_today_goals.sql` 和 `0011_surf_scene.sql`：`/gate` 认人的路径上会读 `users.locale`、`users.today_goals`、`users.surf_scene` 和 `users.surf_line`，数据库里缺哪一列，Worker 一上去就谁也拦不住了。
 
 ### 5. 部署 Pages
 
@@ -235,7 +235,7 @@ npx wrangler d1 execute yixi --remote --command \
 | 渲染 | 服务端 HTML，CSS/JS 内联，零外部请求（CSP 强制）——唯一例外是 `/register` 上的 Turnstile widget，且仅在配置了之后 |
 | 加密 | 只用 WebCrypto —— PBKDF2-SHA256 密码，AES-GCM 封存 token |
 | 客户端 | iOS 快捷指令 + Safari |
-| 测试 | 36 个文件 820 条（Vitest + `@cloudflare/vitest-pool-workers`） |
+| 测试 | 36 个文件 843 条（Vitest + `@cloudflare/vitest-pool-workers`） |
 | 成本 | 在 Cloudflare 免费额度内 |
 
 ## 目录结构
@@ -249,6 +249,7 @@ src/crypto.ts       PBKDF2 密码、AES-GCM 封存 token、随机 hex
 src/db.ts           全部 D1 语句，只有 D1 语句
 src/stats.ts        /review 的聚合层，grace_pass 的排除规则在这里
 src/urges.ts        urges 表的 D1 语句，以及 /surf/review 读取的纯聚合函数
+src/surfscenes.ts   「渡」的五个场景：各自一句开场与三条身体出口，以及存储值怎么解析
 src/snapshot.ts      goal_days 快照：那天展示了什么、做成了什么
 src/ratelimit.ts    开放端点的每 IP 固定窗口限流
 src/turnstile.ts    /register 上那道可选的人机验证，以及它的 fail-open 规则
@@ -264,9 +265,9 @@ src/ui/today.ts     /today —— 每天早上打开的那一页：目标、今�
 src/ui/goals.ts     /today/goals —— 增删改、排序、归档目标
 src/ui/progress.ts  /today/review —— 回看：三十天竖条、每个目标的打卡率
 src/ui/todaysetup.ts  /today/setup —— 主屏幕、快捷指令与定时自动打开的配置向导
-src/ui/surf.ts      /surf —— 十分钟的冲动流程，一份文档五个步骤
+src/ui/surf.ts      /surf —— 十分钟的冲动流程，一份文档四个步骤，全程不提问
 src/ui/surfreview.ts  /surf/review —— 最近三十天冲动记录的回看
-src/ui/surfsetup.ts  /surf/setup —— 编辑引子 chip，以及主屏幕、快捷指令的入口说明
+src/ui/surfsetup.ts  /surf/setup —— 选一次场景，以及主屏幕、快捷指令的入口说明
 src/api/admin.ts    owner 的发号台，以及那条隐私红线
 migrations/*.sql    D1 schema，十个 migration
 scripts/icon.mjs    重新生成 src/ui/pwa.ts 里那份 base64 PNG

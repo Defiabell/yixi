@@ -860,23 +860,15 @@ export const EN: Record<string, string> = {
 
   // --- /surf, the ten-minute flow (src/ui/surf.ts) ---------------------------
   // The voice of the whole face: no praise, no lecture, nothing red, and
-  // 「我点开了」 reads exactly as level as 「过去了」 does.
+  // 「我点开了」 reads exactly as level as 「过去了」 does. Nothing on this page
+  // asks the reader anything — the scene was picked once at /surf/setup — so
+  // there is no question copy left in this group.
   '渡 · 一息': 'Surf · 一息',
   '冲动来了。': 'An urge came.',
-  '此刻，身体是哪一种？': 'Right now, which one is the body?',
-  饿: 'Hungry',
-  烦: 'On edge',
-  孤独: 'Lonely',
-  累: 'Tired',
-  都不是: 'None of these',
-  '是什么把它引来的？': 'What brought it here?',
   其他: 'Something else',
-  '放下手机，去另一个房间。': 'Put the phone down and go to another room.',
-  '回来再点。': 'Tap again when you are back.',
+  '放下手机，去另一个房间。回来再点。': 'Put the phone down and go to another room. Tap again when you are back.',
+  先告诉我这是哪一种: 'Tell me which one this is first',
   我起来了: 'I am up',
-  '二十个深蹲。': 'Twenty squats.',
-  '冷水洗脸。': 'Cold water on your face.',
-  '出门走五分钟。': 'Five minutes outside.',
   '十分钟了。': 'Ten minutes.',
   过去了: 'It passed',
   还想: 'Still there',
@@ -892,16 +884,37 @@ export const EN: Record<string, string> = {
   // Not a parting line: the quiet notice when the start POST never landed and
   // this walk-through left no row behind.
   '这一次没记上。': 'This one was not recorded.',
-  '下次哪一步换成什么？': 'Which step would you change next time?',
-  不写了: 'Skip it',
   再来一次: 'Again',
   '添加到主屏幕，下次一步就到。': 'Add it to the home screen, and next time it is one tap.',
 
-  // --- /surf default triggers (src/types.ts, msg()) -------------------------
-  "躺床上刷手机": "Lying in bed scrolling",
-  "独自在家无事": "Alone at home with nothing to do",
-  "屏幕上看到了什么": "Saw something on a screen",
-  "情绪低落": "Feeling low",
+  // --- /surf scenes (src/surfscenes.ts, msg()) ------------------------------
+  // One opening line and three body exits a scene, picked once at
+  // /surf/setup. The openings name what the urge usually is, in the fewest
+  // words that stay true; the exits are things a body can do in a minute,
+  // not advice. 「其他」 above is the custom scene's own label.
+  色欲: 'Lust',
+  '它不是需要，是最近的一种止痛。': 'It is not a need. It is the nearest painkiller.',
+  '冷水洗脸。': 'Cold water on your face.',
+  '二十个深蹲。': 'Twenty squats.',
+  '出门走五分钟。': 'Five minutes outside.',
+  短视频: 'Short video',
+  '手指想动，不是你想看。': 'The fingers want to move. You do not want to watch.',
+  '把手机放到另一个房间充电。': 'Leave the phone charging in another room.',
+  '打开一本纸书，看两页。': 'Open a paper book and read two pages.',
+  '站起来，倒一杯水。': 'Stand up and pour a glass of water.',
+  游戏: 'Games',
+  '想赢的不是你，是上一局。': 'It is not you that wants to win. It is the last round.',
+  '先洗个澡。': 'Take a shower first.',
+  '把明天要做的第一件事写下来。': 'Write down the first thing you will do tomorrow.',
+  深夜加餐: 'Late-night eating',
+  '多半是累，不是饿。': 'Mostly this is tiredness, not hunger.',
+  '喝一杯温水。': 'Drink a glass of warm water.',
+  '刷牙。': 'Brush your teeth.',
+  '关灯，躺十分钟。': 'Turn off the light and lie down for ten minutes.',
+  '它会过去的。': 'It will pass.',
+  // The word for a scene nobody named: an account that never opened
+  // /surf/setup still has something to be called.
+  冲动: 'An urge',
 
   // --- /surf/review, the 30-day look-back (src/ui/surfreview.ts) ------------
   '三十天 {n} 次': 'Surfed {n} times in 30 days',
@@ -909,17 +922,16 @@ export const EN: Record<string, string> = {
   '点开了 {n}': 'Opened it {n}',
   '另有 {n} 次没走完。': 'Another {n} were not finished.',
   '还没有记录。冲动来的时候，点主屏上的「渡」。': 'Nothing recorded yet. When an urge comes, tap “Surf” on the home screen.',
-  '还没有记录。': 'Nothing recorded yet.',
   三十天: '30 days',
   几点: 'Time of day',
-  身体: 'Body',
-  引子: 'Triggers',
   最近三十天每天的冲动次数: 'Daily urge count over the last 30 days',
   每小时的冲动次数分布: 'Urge count by hour of day',
 
-  // --- /surf/setup, editing triggers and the entry points (src/ui/surfsetup.ts) ---
-  '冲动来的时候，第一步是认出它从哪来。写下你自己的引子，一行一个，最多八条。留空用默认。':
-    'When an urge comes, the first step is naming where it came from. Write your own triggers, one per line, up to eight. Leave it blank to use the defaults.',
+  // --- /surf/setup, picking the scene once and the entry points (src/ui/surfsetup.ts) ---
+  '只需选一次。之后冲动来了，打开就是流程，不再问你任何问题。':
+    'You pick once. After that, an urge means you open this and the flow starts, with nothing left to answer.',
+  自己写一个: 'Write your own',
+  想对那一刻的自己说的一句话: 'One line for yourself in that moment',
   入口: 'Access',
   '主屏：在 Safari 打开 /surf，分享 → 添加到主屏幕，会得到一个独立的「渡」图标。':
     'Home screen: open /surf in Safari, then Share → Add to Home Screen, and you get a separate “Surf” icon.',

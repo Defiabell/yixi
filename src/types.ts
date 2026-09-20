@@ -1,8 +1,3 @@
-// msg() is dependency-free (see src/i18n/index.ts's own header), so importing
-// it here does not risk a cycle: DEFAULT_SURF_TRIGGERS below is the one place
-// this file needs to mark a Chinese string as UI copy destined for t() later.
-import { msg } from './i18n'
-
 export interface Env {
   DB: D1Database
   /**
@@ -58,12 +53,20 @@ export interface User {
    */
   today_goals?: number | null
   /**
-   * The user's own 「渡」 trigger chips, newline-separated, or NULL/unset for
-   * the built-in four. Optional for the same reason `today_goals` is above —
-   * every existing `User` literal in the test suite keeps compiling
-   * unedited. Read it through `surfTriggers` below rather than directly.
+   * Which 「渡」 scene this reader chose at /surf/setup: a bare `SceneKey`, or
+   * `'custom:'` plus their own words. NULL/unset means they never chose, and
+   * the flow still runs on the neutral default. Optional for the same reason
+   * `today_goals` is above — every existing `User` literal in the test suite
+   * keeps compiling unedited. Read it through `sceneOf`/`sceneTrigger` in
+   * src/surfscenes.ts rather than directly.
    */
-  surf_triggers?: string | null
+  surf_scene?: string | null
+  /**
+   * One line this reader wrote for their own worst moment, shown on /surf's
+   * first screen under the scene's opening. NULL/unset/empty means nothing is
+   * shown — it is the whole product's only piece of copy the reader writes.
+   */
+  surf_line?: string | null
 }
 
 export interface UserApp {
@@ -201,7 +204,10 @@ export const GOAL_EXTEND_DAYS = 28
 
 // --- urges（/surf）----------------------------------------------------------
 
-/** 身体状态 chip。'none' 是「都不是」，不是「没选」——第 0 步两组各选一个才进下一步。 */
+/**
+ * 身体状态。v1 的第 0 步问过这个，v2 不问了——冲动来时的页面上一个选择都不留，
+ * 所以新行一律写 `''`。枚举和列都保留：历史行还在，`summarizeUrges` 也还按它分桶。
+ */
 export type UrgeState = 'hungry' | 'angry' | 'lonely' | 'tired' | 'none'
 export const URGE_STATES: readonly UrgeState[] = ['hungry', 'angry', 'lonely', 'tired', 'none']
 
@@ -210,8 +216,9 @@ export type UrgeOutcome = 'passed' | 'opened'
 
 /**
  * 一条冲动流程记录。`outcome`/`ended_at` 为 NULL 表示中途关掉页面，没走完；
- * `state`/`trigger` 为 `''` 是「没选」而非枚举值（`state` 的枚举里 `'none'`
- * 才是「都不是」）。
+ * `state` 在 v2 里永远是 `''`（那一步已经删掉），`trigger` 是服务端从
+ * `users.surf_scene` 填的场景 key 或自定义文本，`''` = 那个账号还没配过场景。
+ * `note` 同样只剩历史行会有值：v2 的收尾页不再让人打字。
  */
 export interface Urge {
   id: number
@@ -225,44 +232,9 @@ export interface Urge {
   note: string
 }
 
-/** 第 2 步一轮的时长：十分钟。 */
+/** 十分钟一轮。 */
 export const SURF_ROUND_MS = 10 * 60 * 1000
-/** `surf_triggers` 最多保留的行数。 */
-export const SURF_TRIGGER_MAX = 8
-/** 每行触发场景最多保留的字数。 */
-export const SURF_TRIGGER_LEN = 20
-/** 「下次哪一步换成什么」输入框的字数上限。 */
-export const SURF_NOTE_LEN = 80
-
-/** 默认四条走 msg()，展示时再 t()。 */
-export const DEFAULT_SURF_TRIGGERS: readonly string[] = [
-  msg('躺床上刷手机'),
-  msg('独自在家无事'),
-  msg('屏幕上看到了什么'),
-  msg('情绪低落'),
-]
-
-/**
- * `surf_triggers` 是用户自己敲的自由文本，永远当「可能是任何东西」处理，跟
- * `todayGoalLimit` 对 `today_goals` 的态度一样：NULL/空/全是空行都回落默认，
- * 而不是把一个空数组交给 `/surf` 第 0 步的 chip 列表。返回值是已经按用户
- * 配置切好的数组——去空行、按去空格后的原文去重、截 `SURF_TRIGGER_MAX` 条、
- * 每条再截 `SURF_TRIGGER_LEN` 字（去重在截字之前，两条只在长度上不同的输入
- * 不会被误判成同一条）。返回的是 zh 源文（走 `msg()`）或用户自己的原文，
- * 都不是已翻译的展示文本——展示时调用方再自己 `t()`。
- */
-export function surfTriggers(user: Pick<User, 'surf_triggers'>): string[] {
-  const raw = user.surf_triggers
-  if (typeof raw !== 'string') return [...DEFAULT_SURF_TRIGGERS]
-
-  const seen = new Set<string>()
-  const lines: string[] = []
-  for (const rawLine of raw.split('\n')) {
-    const trimmed = rawLine.trim()
-    if (trimmed.length === 0 || seen.has(trimmed)) continue
-    seen.add(trimmed)
-    lines.push(trimmed)
-  }
-  if (lines.length === 0) return [...DEFAULT_SURF_TRIGGERS]
-  return lines.slice(0, SURF_TRIGGER_MAX).map((line) => line.slice(0, SURF_TRIGGER_LEN))
-}
+/** 自定义场景那几个字的上限——写在按钮旁边，长了那一屏就不成立了。 */
+export const SURF_SCENE_LEN = 10
+/** 「想对那一刻的自己说的一句话」的字数上限。 */
+export const SURF_LINE_LEN = 40

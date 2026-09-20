@@ -1,11 +1,12 @@
-// /surf/setup — editing the trigger chips /surf's step 0 offers, plus the
-// entry-point instructions (home screen, Shortcuts/Siri). Plain POST/303,
+// /surf/setup — the one place 「渡」 is personalised: pick a scene once, add a
+// line if you want one, and /surf never asks anything again. Plain POST/303,
 // zero client JS, same idiom as settings.ts's own form.
 
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { handleSurfSetup } from '../src/ui/surfsetup'
-import { DEFAULT_SURF_TRIGGERS, SURF_TRIGGER_LEN, SURF_TRIGGER_MAX } from '../src/types'
+import { SCENE_KEYS } from '../src/surfscenes'
+import { SURF_LINE_LEN, SURF_SCENE_LEN } from '../src/types'
 import type { User } from '../src/types'
 
 const BASE = 'https://yixi.example.workers.dev'
@@ -25,9 +26,9 @@ function get(u: User = user): Promise<Response> {
 async function html(u: User = user): Promise<string> {
   return await (await get(u)).text()
 }
-function post(triggers: string, u: User = user): Promise<Response> {
+function post(fields: Record<string, string>, u: User = user): Promise<Response> {
   return handleSurfSetup(
-    new Request(`${BASE}/surf/setup`, { method: 'POST', body: new URLSearchParams({ triggers }) }),
+    new Request(`${BASE}/surf/setup`, { method: 'POST', body: new URLSearchParams(fields) }),
     env,
     u,
   )
@@ -37,32 +38,70 @@ function mainOf(h: string): string {
   expect(m, 'no <main> found').toBeTruthy()
   return m![0]
 }
-async function storedTriggers(): Promise<string | null> {
-  const row = await env.DB.prepare('SELECT surf_triggers FROM users WHERE id = ?1').bind(1).first<{
-    surf_triggers: string | null
+async function stored(id = 1): Promise<{ scene: string | null; line: string | null }> {
+  const row = await env.DB.prepare('SELECT surf_scene, surf_line FROM users WHERE id = ?1').bind(id).first<{
+    surf_scene: string | null
+    surf_line: string | null
   }>()
-  return row?.surf_triggers ?? null
+  return { scene: row?.surf_scene ?? null, line: row?.surf_line ?? null }
 }
 
 describe('GET', () => {
-  it('prefills the textarea with the four built-in triggers, one per line, when the account has none of its own', async () => {
+  it('offers the five scenes as one radio group, each a 44px-tall label', async () => {
     const h = await html()
-    const expected = DEFAULT_SURF_TRIGGERS.join('\n')
-    expect(h).toContain(`<textarea id="triggers" name="triggers" rows="8">${expected}</textarea>`)
+    for (const key of SCENE_KEYS) {
+      expect(h, key).toContain(`<input type="radio" name="scene" value="${key}" required`)
+    }
+    expect(h).toContain('色欲')
+    expect(h).toContain('短视频')
+    expect(h).toContain('游戏')
+    expect(h).toContain('深夜加餐')
+    expect(h).toContain('其他')
+    // The row is the touch target, and iOS will not forgive a smaller one.
+    expect(h).toMatch(/\.opt\{[^}]*min-height:44px/)
   })
 
-  it("prefills with the account's own raw column, verbatim, when it has one", async () => {
-    const h = await html({ ...user, surf_triggers: 'a\n\nb\nb' })
-    // Byte for byte, including the blank line and the repeat: this is the raw
-    // column, not `surfTriggers()`'s already-deduped read view — re-saving an
-    // untouched form must round-trip exactly, not silently clean it up first.
-    expect(h).toContain('<textarea id="triggers" name="triggers" rows="8">a\n\nb\nb</textarea>')
+  it('preselects nothing at all for an account that has never chosen', async () => {
+    // A default here would be a guess about the most private thing stored;
+    // `required` is what keeps the form from submitting empty instead.
+    expect(await html()).not.toContain('checked')
   })
 
-  it('escapes a stored trigger that carries markup, rather than rendering it as a tag', async () => {
-    const h = await html({ ...user, surf_triggers: '<b>bad</b>' })
-    expect(h).toContain('&lt;b&gt;bad&lt;/b&gt;')
-    expect(h).not.toContain('<b>bad</b>')
+  it('checks the stored scene, and only that one', async () => {
+    const h = await html({ ...user, surf_scene: 'game' })
+    expect(h).toContain('value="game" required checked')
+    expect(h.match(/checked/g)).toHaveLength(1)
+  })
+
+  it("prefills the custom box with the account's own words, and the line with its line", async () => {
+    const h = await html({ ...user, surf_scene: 'custom:打牌', surf_line: '别把今晚也赔进去' })
+    expect(h).toContain('value="custom" required checked')
+    expect(h).toContain(`name="custom" maxlength="${SURF_SCENE_LEN}" value="打牌"`)
+    expect(h).toContain(`name="line" maxlength="${SURF_LINE_LEN}" value="别把今晚也赔进去"`)
+  })
+
+  it('leaves the custom box empty when a preset is stored, rather than showing a key', async () => {
+    const h = await html({ ...user, surf_scene: 'snack' })
+    expect(h).toContain(`name="custom" maxlength="${SURF_SCENE_LEN}" value=""`)
+  })
+
+  it('escapes stored text that carries markup, rather than rendering it as a tag', async () => {
+    const h = await html({ ...user, surf_scene: 'custom:<b>x</b>', surf_line: '<i>hi</i>' })
+    expect(h).toContain('&lt;b&gt;x&lt;/b&gt;')
+    expect(h).toContain('&lt;i&gt;hi&lt;/i&gt;')
+    expect(h).not.toContain('<b>x</b>')
+    expect(h).not.toContain('<i>hi</i>')
+  })
+
+  it('says the choice is made once and never again', async () => {
+    expect(mainOf(await html())).toContain('只需选一次。之后冲动来了，打开就是流程，不再问你任何问题。')
+  })
+
+  it('keeps both inputs at 16px, the size below which iOS zooms the page', async () => {
+    const h = await html()
+    expect(h).toMatch(/input\[type=text\][^{]*\{[^}]*font-size:16px/)
+    // …and the custom box must not have narrowed itself out of that rule.
+    expect(h).not.toMatch(/input#custom\{[^}]*font-size/)
   })
 
   it('names the request origin in the Shortcuts paragraph, and never renders a token', async () => {
@@ -88,58 +127,63 @@ describe('GET', () => {
 })
 
 describe('POST', () => {
-  it('splits on newlines, trims, drops blanks, de-duplicates, and stores the result joined by \\n', async () => {
-    const res = await post('  躺床上刷手机  \n\n躺床上刷手机\n新引子\n  \n新引子2')
+  it('stores a preset by its bare key and drops a stale custom box', async () => {
+    const res = await post({ scene: 'feed', custom: '上一次写的', line: '' })
     expect(res.status).toBe(303)
     expect(res.headers.get('location')).toBe('/surf/setup')
-    expect(await storedTriggers()).toBe('躺床上刷手机\n新引子\n新引子2')
+    expect(await stored()).toEqual({ scene: 'feed', line: null })
   })
 
-  it(`refuses more than ${SURF_TRIGGER_MAX} distinct lines`, async () => {
-    const lines = Array.from({ length: SURF_TRIGGER_MAX + 1 }, (_, i) => `引子${i}`)
-    const res = await post(lines.join('\n'))
-    expect(res.status).toBe(400)
-    expect(await storedTriggers()).toBeNull()
-  })
-
-  it('accepts exactly the maximum number of lines', async () => {
-    const lines = Array.from({ length: SURF_TRIGGER_MAX }, (_, i) => `引子${i}`)
-    const res = await post(lines.join('\n'))
+  it('stores a custom scene prefixed, with the line beside it', async () => {
+    const res = await post({ scene: 'custom', custom: ' 打牌 ', line: ' 别把今晚也赔进去 ' })
     expect(res.status).toBe(303)
-    expect(await storedTriggers()).toBe(lines.join('\n'))
+    expect(await stored()).toEqual({ scene: 'custom:打牌', line: '别把今晚也赔进去' })
   })
 
-  it(`refuses a line longer than ${SURF_TRIGGER_LEN} characters`, async () => {
-    const tooLong = 'x'.repeat(SURF_TRIGGER_LEN + 1)
-    const res = await post(tooLong)
-    expect(res.status).toBe(400)
-    expect(await storedTriggers()).toBeNull()
+  it('refuses a scene that is not one of the five', async () => {
+    for (const scene of ['gambling', '', 'CUSTOM']) {
+      expect((await post({ scene, custom: '', line: '' })).status, scene).toBe(400)
+    }
+    expect(await stored()).toEqual({ scene: null, line: null })
   })
 
-  it(`accepts a line exactly ${SURF_TRIGGER_LEN} characters long`, async () => {
-    const justRight = 'x'.repeat(SURF_TRIGGER_LEN)
-    const res = await post(justRight)
+  it('refuses 其他 with nothing typed — a scene with no name is not a scene', async () => {
+    expect((await post({ scene: 'custom', custom: '   ', line: '' })).status).toBe(400)
+    expect(await stored()).toEqual({ scene: null, line: null })
+  })
+
+  it(`refuses custom text longer than ${SURF_SCENE_LEN} characters instead of cutting it`, async () => {
+    const tooLong = '一'.repeat(SURF_SCENE_LEN + 1)
+    expect((await post({ scene: 'custom', custom: tooLong, line: '' })).status).toBe(400)
+    expect(await stored()).toEqual({ scene: null, line: null })
+
+    const justRight = '一'.repeat(SURF_SCENE_LEN)
+    expect((await post({ scene: 'custom', custom: justRight, line: '' })).status).toBe(303)
+    expect(await stored()).toEqual({ scene: `custom:${justRight}`, line: null })
+  })
+
+  it(`refuses a line longer than ${SURF_LINE_LEN} characters, and accepts one exactly that long`, async () => {
+    expect((await post({ scene: 'lust', custom: '', line: 'x'.repeat(SURF_LINE_LEN + 1) })).status).toBe(400)
+    expect(await stored()).toEqual({ scene: null, line: null })
+
+    const justRight = 'x'.repeat(SURF_LINE_LEN)
+    expect((await post({ scene: 'lust', custom: '', line: justRight })).status).toBe(303)
+    expect(await stored()).toEqual({ scene: 'lust', line: justRight })
+  })
+
+  it('does not let an over-long leftover in the custom box refuse a preset save', async () => {
+    const res = await post({ scene: 'snack', custom: '一'.repeat(SURF_SCENE_LEN + 5), line: '' })
     expect(res.status).toBe(303)
-    expect(await storedTriggers()).toBe(justRight)
-  })
-
-  it('clears the column back to NULL (the built-in four) when the content is empty or all blank lines', async () => {
-    await env.DB.prepare('UPDATE users SET surf_triggers = ?2 WHERE id = ?1').bind(1, '之前的自定义').run()
-    const res = await post('\n   \n\n')
-    expect(res.status).toBe(303)
-    expect(await storedTriggers()).toBeNull()
+    expect(await stored()).toEqual({ scene: 'snack', line: null })
   })
 
   it("does not let one account's save touch another account's row", async () => {
     await env.DB.prepare(
       "INSERT INTO users (id, name, token_hash, is_owner, created_at) VALUES (2, '李四', 'h2', 0, 0)",
     ).run()
-    await post('仅李四的引子', { id: 2, name: '李四', is_owner: 0, created_at: 0 })
-    expect(await storedTriggers()).toBeNull()
-    const row = await env.DB.prepare('SELECT surf_triggers FROM users WHERE id = 2').first<{
-      surf_triggers: string | null
-    }>()
-    expect(row?.surf_triggers).toBe('仅李四的引子')
+    await post({ scene: 'game', custom: '', line: '仅李四的' }, { id: 2, name: '李四', is_owner: 0, created_at: 0 })
+    expect(await stored(1)).toEqual({ scene: null, line: null })
+    expect(await stored(2)).toEqual({ scene: 'game', line: '仅李四的' })
   })
 
   it('rejects a request with no form body', async () => {

@@ -1,23 +1,34 @@
-// /surf/setup — 「怎么配」 for the 渡 face: edit the trigger chips /surf's
-// step 0 offers, plus the two ways to get to /surf without typing its
-// address by hand (home screen, Shortcuts/Siri).
+// /surf/setup — 「怎么配」 for the 渡 face: the one and only place the flow is
+// personalised, plus the two ways to get to /surf without typing its address
+// by hand (home screen, Shortcuts/Siri).
 //
-// Length rules live here, at the route, not inside `surfTriggers` (src/
-// types.ts): that reader is a permissive fallback for whatever already made
-// it into the column (NULL, garbage, a stray blank line), used every time
-// /surf renders its chips. This POST is the one and only place new content
-// reaches the column, so it is where "too many lines" and "a line too long"
-// get to be a 400 instead of a silent truncation.
+// Everything this page asks is asked HERE so that /surf can ask nothing. One
+// scene, chosen once, decides the opening line and the three body exits the
+// ten minutes rotate through; one optional sentence is whatever the reader
+// wants their own worst moment to hear. The flow page then has a single
+// interaction on it, and somebody with an urge already running does not have
+// to spend anything on picking a category first.
+//
+// Length rules live here, at the route: this POST is the one and only place
+// new content reaches `users.surf_scene`/`users.surf_line`, so it is where
+// 「too long」 and 「nothing typed」 get to be a 400 rather than a silent
+// truncation. `sceneOf` on the read side stays permissive on purpose — it is
+// handed whatever already made it into the column, and a reader mid-urge must
+// get a whole page out of it whatever that is.
 //
 // Zero client JS, same as every other console page's form (settings.ts,
-// todaysetup.ts): plain POST, 303 back to GET.
+// todaysetup.ts): plain POST, 303 back to GET. That is also why the custom
+// text box is always visible rather than revealed by picking 「其他」 — there
+// is no script here to reveal it with, and a box that does nothing until the
+// radio beside it is picked reads fine.
 //
 // The entry-instructions section never prints the account's own token —
 // only /account does that — it only names where to go get it.
 
 import type { Env, User } from '../types'
-import { DEFAULT_SURF_TRIGGERS, SURF_TRIGGER_LEN, SURF_TRIGGER_MAX } from '../types'
-import { setUserSurfTriggers } from '../urges'
+import { SURF_LINE_LEN, SURF_SCENE_LEN } from '../types'
+import { SCENE_KEYS, SCENES, hasScene, isSceneKey, sceneOf, sceneTrigger, storedScene } from '../surfscenes'
+import { setUserSurfScene } from '../urges'
 import { DEFAULT_THEME, escapeHtml, page } from './layout'
 import { CONSOLE_CSS, consoleHeader } from './console'
 import { localeOf, translator, type Locale, type T } from '../i18n'
@@ -31,22 +42,34 @@ export async function handleSurfSetup(request: Request, env: Env, user: User): P
 }
 
 /**
- * The textarea is prefilled with the account's own raw column when it has
- * one, or the four built-in triggers (translated, one per line) when it does
- * not — never `surfTriggers(user)`'s already-deduped/cut view, so re-saving
- * an unedited form round-trips byte for byte.
+ * Nothing is pre-selected for an account that has never been here: the radios
+ * carry `required` instead, so the browser asks for a pick rather than the
+ * form quietly submitting somebody else's default. A default scene would be a
+ * guess about the most private thing this product stores.
  */
 function renderSurfSetup(request: Request, user: User, t: T, loc: Locale): Response {
   const origin = new URL(request.url).origin
-  const prefill = user.surf_triggers ?? DEFAULT_SURF_TRIGGERS.map((source) => t(source)).join('\n')
+  const chosen = hasScene(user) ? sceneOf(user).scene.key : null
+  const custom = chosen === 'custom' ? sceneTrigger(user) : ''
+  const line = typeof user.surf_line === 'string' ? user.surf_line : ''
+
+  const options = SCENE_KEYS.map((key) => {
+    const mark = key === chosen ? ' checked' : ''
+    return `    <label class="opt"><input type="radio" name="scene" value="${key}" required${mark}><span>${t(SCENES[key].label)}</span></label>`
+  }).join('\n')
 
   const body = `${consoleHeader(user, 'surfsetup', t)}
 <main>
 <h1>${t('怎么配')}</h1>
+<p class="lede">${t('只需选一次。之后冲动来了，打开就是流程，不再问你任何问题。')}</p>
 <form method="post" action="/surf/setup">
+  <div class="opts">
+${options}
+    <input id="custom" type="text" name="custom" maxlength="${SURF_SCENE_LEN}" value="${escapeHtml(custom)}" autocomplete="off" placeholder="${escapeHtml(t('自己写一个'))}" aria-label="${escapeHtml(t('自己写一个'))}">
+  </div>
   <div class="field">
-    <label for="triggers">${t('冲动来的时候，第一步是认出它从哪来。写下你自己的引子，一行一个，最多八条。留空用默认。')}</label>
-    <textarea id="triggers" name="triggers" rows="8">${escapeHtml(prefill)}</textarea>
+    <label for="line">${t('想对那一刻的自己说的一句话')}</label>
+    <input id="line" type="text" name="line" maxlength="${SURF_LINE_LEN}" value="${escapeHtml(line)}" autocomplete="off">
   </div>
   <div class="actions"><button type="submit" class="primary">${t('保存')}</button></div>
 </form>
@@ -69,9 +92,10 @@ function renderSurfSetup(request: Request, user: User, t: T, loc: Locale): Respo
 }
 
 /**
- * Split on newlines, trim, drop blanks, de-duplicate — same shape as
- * `surfTriggers`'s own read-side pass, but every limit here answers with a
- * 400 instead of quietly cutting the input down to fit.
+ * Every limit answers with a 400 rather than storing a cut-down version. The
+ * custom text is only looked at when 「其他」 is the pick — a leftover in that
+ * box from a previous visit must not be able to refuse a save of one of the
+ * four presets.
  */
 async function handlePost(request: Request, env: Env, user: User): Promise<Response> {
   let form: FormData
@@ -80,26 +104,21 @@ async function handlePost(request: Request, env: Env, user: User): Promise<Respo
   } catch {
     return bad()
   }
-  const raw = form.get('triggers')
-  const lines = normalizeLines(typeof raw === 'string' ? raw : '')
 
-  if (lines.length > SURF_TRIGGER_MAX) return bad()
-  if (lines.some((line) => line.length > SURF_TRIGGER_LEN)) return bad()
+  const scene = field(form, 'scene')
+  if (!isSceneKey(scene)) return bad()
+  const custom = field(form, 'custom')
+  if (scene === 'custom' && (custom === '' || custom.length > SURF_SCENE_LEN)) return bad()
+  const line = field(form, 'line')
+  if (line.length > SURF_LINE_LEN) return bad()
 
-  await setUserSurfTriggers(env.DB, user.id, lines.length === 0 ? null : lines.join('\n'))
+  await setUserSurfScene(env.DB, user.id, storedScene(scene, custom), line === '' ? null : line)
   return seeOther('/surf/setup')
 }
 
-function normalizeLines(raw: string): string[] {
-  const seen = new Set<string>()
-  const lines: string[] = []
-  for (const rawLine of raw.split('\n')) {
-    const trimmed = rawLine.trim()
-    if (trimmed.length === 0 || seen.has(trimmed)) continue
-    seen.add(trimmed)
-    lines.push(trimmed)
-  }
-  return lines
+function field(form: FormData, key: string): string {
+  const v = form.get(key)
+  return typeof v === 'string' ? v.trim() : ''
 }
 
 function bad(): Response {
@@ -112,11 +131,15 @@ function seeOther(location: string): Response {
 
 // --- styles -------------------------------------------------------------------
 //
-// Appended to CONSOLE_CSS, which styles input[type=text/number] but has no
-// rule for a textarea yet — this is the first console page to use one.
+// Appended to CONSOLE_CSS, which styles `label` as a small dim caption above a
+// field — the wrong shape for a radio row, where the word is the target you
+// tap. `.opt` restores full size and colour and gives the row the 44px iOS
+// touch height; the class beats the bare element selector, so the caption rule
+// still applies to the one real caption on this page.
 const SURFSETUP_CSS = `
-textarea{display:block;width:100%;font:inherit;font-size:16px;line-height:1.5;
-  padding:10px 12px;color:var(--fg);background:transparent;border:1px solid var(--rule);border-radius:10px;
-  resize:vertical}
-textarea:focus{outline:1px solid var(--ring-prog);outline-offset:0}
+.opts{margin:0 0 18px}
+.opt{display:flex;align-items:center;gap:12px;min-height:44px;margin:0;font-size:16px;color:var(--fg);line-height:1.5}
+.opt input{width:20px;height:20px;accent-color:var(--fg);margin:0;flex:0 0 auto}
+/* Indented under 「其他」, and narrow: ten characters is the whole point. */
+input#custom{margin:4px 0 0 32px;width:auto;max-width:14rem}
 `
