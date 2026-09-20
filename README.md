@@ -70,7 +70,7 @@ Three that apply to the whole product. The per-face lists are in [docs/breathe.m
 | `/lookup` `/probe` | — | kept as 302s to `/settings`. Both were pages once; finding and testing a scheme is now part of the field that needs it, so old links and bookmarks still land somewhere useful |
 | `/setup` | you | the Shortcut walkthrough, with your own host and token filled in |
 | `/surf` | you | the Surf (渡) ten-minute flow: put the phone down, let it pass, then decide again. Nothing on it asks you anything |
-| `/surf/review` | you | Surf's 30-day look-back: urge counts, the passed/opened ratio, and what time of day they come |
+| `/surf/review` | you | Surf's 30-day look-back: urge counts, the passed/opened ratio, and what time of day they come. Also the entry point for the 渡 face |
 | `/surf/setup` | you | pick your scene, once |
 | `/account` | you | read your gate token back, change your password, sign out |
 | `/mock?v=1\|2` | anyone | the two candidate visual skins, side by side |

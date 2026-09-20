@@ -19,13 +19,16 @@
 // --- three faces --------------------------------------------------------------
 //
 // The nav is now three navs: 今日 (/today, /today/goals, /today/review,
-// /today/setup), 拦截 (/review, /settings, /setup) and 渡 (/surf, /surf/review,
+// /today/setup), 拦截 (/review, /settings, /setup) and 渡 (/surf/review,
 // /surf/setup). So the shape-equality check runs within each face's own page
 // set rather than across all of them, and a handful of checks (which hrefs a
 // face may and may not offer, the owner's extra tab, the a.face switch link)
 // are asserted per face explicitly. `/surf` itself is the one exception: the
 // ten-minute flow renders no shared header at all, by design, so it has no
-// nav to diff and is covered by its own standalone test instead.
+// nav to diff and is covered by its own standalone test instead — and it is
+// deliberately not a tab on its own face either, because it writes an `urges`
+// row on load, and a nav entry would let browsing between faces silently
+// start a record. The face's home is /surf/review, not /surf.
 
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -176,16 +179,19 @@ describe('one nav a face, on every signed-in page', () => {
     }
   })
 
-  it('gives the 渡 face its three hrefs and none of the other two faces’', async () => {
+  it('gives the 渡 face its two hrefs and none of the other two faces’', async () => {
     for (const name of Object.keys(SURF_PAGES)) {
       const nav = navOf(await html(SURF_PAGES, name), name)
-      for (const href of ['/surf', '/surf/review', '/surf/setup', '/account']) {
+      for (const href of ['/surf/review', '/surf/setup', '/account']) {
         expect(nav, `${name} has no link to ${href}`).toContain(`href="${href}"`)
       }
+      // /surf itself writes an `urges` row on load, so it must never be a tab —
+      // that would let switching faces silently start a record.
+      expect(nav, `${name} offers /surf as a tab`).not.toMatch(/href="\/surf"/)
       expect(nav, `${name} leaked a 今日 href`).not.toMatch(/href="\/today"/)
       expect(nav, `${name} leaked a 拦截 href`).not.toMatch(/href="\/review"/)
       expect(nav, `${name} leaked an admin href`).not.toMatch(/href="\/admin"/)
-      expect(nav.match(/<a /g), `${name} tab count`).toHaveLength(4)
+      expect(nav.match(/<a /g), `${name} tab count`).toHaveLength(3)
     }
   })
 
@@ -225,20 +231,21 @@ describe('one nav a face, on every signed-in page', () => {
   /**
    * Three faces now exist (今日, 拦截, 渡), so the switch beside the brand is
    * one `a.face` per face OTHER than the one you are on — two links, not
-   * one — each pointing at that face's home (/today, /review or /surf).
+   * one — each pointing at that face's home (/today, /review or
+   * /surf/review — not /surf, which writes a record on load).
    */
   it('offers an a.face link to each of the other faces’ homes, beside the brand', async () => {
     for (const name of Object.keys(TODAY_PAGES)) {
       const page = await html(TODAY_PAGES, name)
       expect(page.match(/<a class="face" /g), `${name} a.face count`).toHaveLength(2)
       expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/review">拦截\s*›<\/a>/)
-      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/surf">渡\s*›<\/a>/)
+      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/surf\/review">渡\s*›<\/a>/)
     }
     for (const name of Object.keys(BREATHE_PAGES)) {
       const page = await html(BREATHE_PAGES, name)
       expect(page.match(/<a class="face" /g), `${name} a.face count`).toHaveLength(2)
       expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/today">今日\s*›<\/a>/)
-      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/surf">渡\s*›<\/a>/)
+      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/surf\/review">渡\s*›<\/a>/)
     }
     for (const name of Object.keys(SURF_PAGES)) {
       const page = await html(SURF_PAGES, name)
@@ -261,7 +268,7 @@ describe('one nav a face, on every signed-in page', () => {
     }
     for (const name of Object.keys(SURF_PAGES)) {
       const nav = navOf(await html(SURF_PAGES, name, owner), `${name} (owner)`)
-      expect(nav.match(/<a /g), `${name} owner tab count`).toHaveLength(4)
+      expect(nav.match(/<a /g), `${name} owner tab count`).toHaveLength(3)
       expect(nav, `${name} owner should have no 发号`).not.toContain('/admin')
     }
     const adminNav = navOf(await (await handleAdmin(new Request(`${BASE}/admin`), env, owner)).text(), 'admin')
@@ -282,8 +289,8 @@ describe('one nav a face, on every signed-in page', () => {
     }
     for (const name of Object.keys(SURF_PAGES)) {
       const nav = navOf(await html(SURF_PAGES, name), name)
-      expect(nav.match(/<svg /g), `${name} tab icons`).toHaveLength(4)
-      expect(nav.match(/<span class="lb">/g), `${name} tab labels`).toHaveLength(4)
+      expect(nav.match(/<svg /g), `${name} tab icons`).toHaveLength(3)
+      expect(nav.match(/<span class="lb">/g), `${name} tab labels`).toHaveLength(3)
     }
   })
 

@@ -917,6 +917,8 @@ export const EN: Record<string, string> = {
   冲动: 'An urge',
 
   // --- /surf/review, the 30-day look-back (src/ui/surfreview.ts) ------------
+  现在就渡: 'Surf now',
+  '冲动来的时候，从主屏图标进；这里只看记录。': 'When an urge comes, use the home-screen icon. This page only shows records.',
   '三十天 {n} 次': 'Surfed {n} times in 30 days',
   '过去了 {n}': 'Passed {n}',
   '点开了 {n}': 'Opened it {n}',

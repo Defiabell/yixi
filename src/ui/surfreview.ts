@@ -4,6 +4,15 @@
 // (CONSOLE_CSS), zero client JS — every number here is computed server-side
 // by summarizeUrges (src/urges.ts) and injected as plain HTML.
 //
+// This page is also the 渡 face's home (FACE_HOME.surf in console.ts) and its
+// 「回看」 tab, so it is where a reader lands switching faces from 今日 or
+// 拦截 — not /surf itself, which writes an `urges` row the moment it loads.
+// `entryBlock` below is the one deliberate escape hatch out of that:
+// a single button into the flow, directly under the header and before any
+// number, so landing here to browse never doubles as landing here to start
+// one. It renders in both the empty and the with-data branch, because the
+// dead end it fixes exists in both.
+//
 // Two cards, and deliberately only two. 「身体」 and 「引子」 used to sit
 // below them, counting the answers /surf's own step 0 collected — and that
 // step is gone: the flow asks nothing now (see src/ui/surf.ts, decision 0), so
@@ -52,13 +61,14 @@ export async function renderSurfReview(request: Request, env: Env, user: User): 
       theme: DEFAULT_THEME,
       lang: loc,
       css: CONSOLE_CSS + SURFREVIEW_CSS,
-      body: `${consoleHeader(user, 'surfreview', t)}\n<main>\n  <h1>${t('回看')}</h1>\n  ${emptyState(t)}\n</main>`,
+      body: `${consoleHeader(user, 'surfreview', t)}\n<main>\n  <h1>${t('回看')}</h1>\n  ${entryBlock(t)}\n  ${emptyState(t)}\n</main>`,
     })
   }
 
   const body = `${consoleHeader(user, 'surfreview', t)}
 <main>
   <h1>${t('回看')}</h1>
+  ${entryBlock(t)}
   <p class="tri">
     <span>${t('三十天 {n} 次', { n: summary.total })}</span>
     <span>${t('过去了 {n}', { n: summary.passed })}</span>
@@ -82,6 +92,17 @@ export async function renderSurfReview(request: Request, env: Env, user: User): 
     css: CONSOLE_CSS + SURFREVIEW_CSS,
     body,
   })
+}
+
+/**
+ * The one working path into the flow from a page that otherwise only reads.
+ * Styled like the console's own `button.primary` (CONSOLE_CSS) but an `<a>`,
+ * not a `<button>`: this page carries no `<form>` and no client JS, so a real
+ * link is the only way to reach /surf that does not invent a script for it.
+ */
+function entryBlock(t: T): string {
+  return `<a class="entry" href="/surf">${t('现在就渡')} ›</a>
+  <p class="note">${t('冲动来的时候，从主屏图标进；这里只看记录。')}</p>`
 }
 
 function emptyState(t: T): string {
@@ -115,6 +136,15 @@ function hourBars(hours: number[]): string {
 // strip (see the header comment) without importing it — the two files do not
 // share a CSS constant, same convention progress.ts documents for itself.
 const SURFREVIEW_CSS = `
+/* Same visual as CONSOLE_CSS's button.primary — pill, filled, the same tokens
+   breathe.ts uses for 继续打开 — but that rule only matches a <button>, and
+   this page has no <form> to put one in. An anchor styled the same way reads
+   as the same weight of action without inventing a script to submit. */
+.entry{display:inline-flex;align-items:center;justify-content:center;
+  background:var(--stop-bg);color:var(--stop-fg);border:1px solid var(--stop-border);
+  border-radius:99px;padding:12px 26px;font-size:16px;min-height:46px;box-sizing:border-box;
+  text-decoration:none;margin:2px 0 4px}
+.entry:active{opacity:.72}
 .tri{display:flex;flex-wrap:wrap;gap:8px 20px;margin:2px 0 10px;font-size:15px;color:var(--dim)}
 .tri span{color:var(--fg)}
 .month{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px}

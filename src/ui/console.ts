@@ -16,8 +16,10 @@
 //
 // 「今日」 (goal-tending: /today, /today/goals, /today/review, /today/setup),
 // 「拦截」 (the original interception console: /review, /settings, /setup) and
-// 「渡」 (urge-surfing: /surf, /surf/review, /surf/setup) are three different
-// jobs sharing one nav row, and a five-to-six tab row was already the ceiling
+// 「渡」 (urge-surfing: /surf/review, /surf/setup — /surf itself, the flow, is
+// reached from the home-screen icon or /surf/review's own entry button, never
+// from this nav, so switching faces never auto-starts a record) are three
+// different jobs sharing one nav row, and a five-to-six tab row was already the ceiling
 // for what fits a phone width without wrapping. Splitting the tabs by face
 // keeps each row at four or five, at the cost of one more tap to cross faces
 // — which is the right trade, because nobody bounces between them mid-task.
@@ -49,7 +51,6 @@ export type ConsolePage = Extract<
   | 'setup'
   | 'account'
   | 'admin'
-  | 'surf'
   | 'surfreview'
   | 'surfsetup'
 >
@@ -60,7 +61,7 @@ export type Face = 'today' | 'breathe' | 'surf'
 /** Which face a page's tab belongs to — the only place that mapping is decided. */
 export function faceOf(page: ConsolePage): Face {
   if (page === 'today' || page === 'goals' || page === 'progress' || page === 'todaysetup') return 'today'
-  if (page === 'surf' || page === 'surfreview' || page === 'surfsetup') return 'surf'
+  if (page === 'surfreview' || page === 'surfsetup') return 'surf'
   return 'breathe'
 }
 
@@ -85,9 +86,15 @@ const BREATHE_TABS: Array<[href: string, name: ConsolePage, label: string]> = [
   ['/setup', 'setup', msg('怎么配')],
 ]
 
-/** 渡: an urge-surfing flow — ride the craving out instead of jumping. */
+/**
+ * 渡: an urge-surfing flow — ride the craving out instead of jumping. `/surf`
+ * itself is deliberately not a tab: it writes an `urges` row the moment it
+ * loads (src/ui/surf.ts), so a nav entry for it would let somebody browsing
+ * between faces silently start a record just by landing here. The face's home
+ * is /surf/review instead (see FACE_HOME below), and /surf/review carries its
+ * own entry button into the flow for when an urge actually needs surfing.
+ */
 const SURF_TABS: Array<[href: string, name: ConsolePage, label: string]> = [
-  ['/surf', 'surf', msg('渡')],
   ['/surf/review', 'surfreview', msg('回看')],
   ['/surf/setup', 'surfsetup', msg('怎么配')],
 ]
@@ -95,7 +102,9 @@ const SURF_TABS: Array<[href: string, name: ConsolePage, label: string]> = [
 const FACE_HOME: Record<Face, { href: string; label: string }> = {
   today: { href: '/today', label: msg('今日') },
   breathe: { href: '/review', label: msg('拦截') },
-  surf: { href: '/surf', label: msg('渡') },
+  // Not /surf: the face switch is a link somebody idly taps to look around,
+  // and /surf writes a record on load. /surf/review is read-only.
+  surf: { href: '/surf/review', label: msg('渡') },
 }
 
 /**

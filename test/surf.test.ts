@@ -162,8 +162,36 @@ describe('the page', () => {
     expect(h).not.toContain('<input')
     expect(h).not.toContain('<form')
     // The one button that moves the flow forward, and the two that end it.
+    // The 回看/怎么配 exits added to step 3 are <a> tags, not <button>, so they
+    // do not move this count — see the dedicated test below for those.
     const buttons = mainOf(h).match(/<button/g) ?? []
     expect(buttons).toHaveLength(5)
+  })
+
+  it('offers 回看 and 怎么配 exits only on the closing step, below 再来一次', async () => {
+    // 'feed' so step 0 carries no /surf/setup link of its own (see "offers the
+    // setup link only while no scene has been chosen" below) — otherwise that
+    // pre-existing link would collide with the "steps 0-2 stay untouched"
+    // check further down.
+    const h = await html({ ...user, surf_scene: 'feed' })
+    const step3 = h.match(/<section class="step" data-step="3">([\s\S]*?)<\/section>/)
+    expect(step3, 'step 3 missing').toBeTruthy()
+    const body = step3![1]!
+    expect(body).toContain('<a class="linky" href="/surf/review">回看 ›</a>')
+    expect(body).toContain('<a class="linky" href="/surf/setup">怎么配 ›</a>')
+    // Below 「再来一次」, not above it.
+    const again = body.indexOf('再来一次')
+    expect(again).toBeGreaterThan(-1)
+    expect(body.indexOf('href="/surf/review"')).toBeGreaterThan(again)
+    expect(body.indexOf('href="/surf/setup"')).toBeGreaterThan(again)
+
+    // Steps 0-2 are untouched: zero extra elements leaked backward into them.
+    for (const n of [0, 1, 2]) {
+      const step = h.match(new RegExp(`<section class="step" data-step="${n}">([\\s\\S]*?)</section>`))
+      expect(step, `step ${n} missing`).toBeTruthy()
+      expect(step![1]).not.toContain('/surf/review')
+      expect(step![1]).not.toContain('/surf/setup')
+    }
   })
 
   it('opens with the chosen scene line and rotates that scene own three tips', async () => {
@@ -192,13 +220,20 @@ describe('the page', () => {
     expect(await html({ ...user, surf_scene: 'lust', surf_line: '   ' })).not.toContain('class="line own"')
   })
 
-  it('offers the setup link only while no scene has been chosen', async () => {
+  it('offers the setup link on step 0 only while no scene has been chosen', async () => {
     const unset = await html()
     expect(unset).toContain('<a class="linky" href="/surf/setup">先告诉我这是哪一种 ›</a>')
-    // Once a scene exists the link is gone for good: it is the one exception
-    // to "no choices in the flow", and it has to stop being on the page.
+    // Once a scene exists, step 0's own link is gone for good: it was the one
+    // exception to "no choices in the flow", made only for an account that has
+    // never told the flow which scene it is. Scoped to step 0 rather than the
+    // whole page, because step 3 now carries its own, unconditional
+    // href="/surf/setup" (the 「怎么配」 exit — see the dedicated test above),
+    // which is a different link and must survive regardless of scene.
     for (const scene of ['lust', 'feed', 'game', 'snack', 'custom:打牌']) {
-      expect(await html({ ...user, surf_scene: scene }), scene).not.toContain('href="/surf/setup"')
+      const h = await html({ ...user, surf_scene: scene })
+      const step0 = h.match(/<section class="step" data-step="0">([\s\S]*?)<\/section>/)
+      expect(step0, scene).toBeTruthy()
+      expect(step0![1], scene).not.toContain('href="/surf/setup"')
     }
   })
 

@@ -822,7 +822,9 @@ describe('/surf/review in English', () => {
 
     const nav = html.match(/<nav aria-label="Navigation">([\s\S]*?)<\/nav>/)
     expect(nav, 'nav missing or still labelled in Chinese').toBeTruthy()
-    for (const label of ['Surf', 'Review', 'Guide', 'Account']) {
+    // 'Surf' (渡) is deliberately not among these: /surf writes an `urges` row
+    // on load, so it is not a tab on its own face's nav — see console.ts.
+    for (const label of ['Review', 'Guide', 'Account']) {
       expect(nav![1]).toContain(`<span class="lb">${label}</span>`)
     }
   })
@@ -870,7 +872,9 @@ describe('/surf/setup in English', () => {
 
     const nav = html.match(/<nav aria-label="Navigation">([\s\S]*?)<\/nav>/)
     expect(nav, 'nav missing or still labelled in Chinese').toBeTruthy()
-    for (const label of ['Surf', 'Review', 'Guide', 'Account']) {
+    // 'Surf' (渡) is deliberately not among these: /surf writes an `urges` row
+    // on load, so it is not a tab on its own face's nav — see console.ts.
+    for (const label of ['Review', 'Guide', 'Account']) {
       expect(nav![1]).toContain(`<span class="lb">${label}</span>`)
     }
   })

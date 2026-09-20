@@ -45,7 +45,6 @@ export type IconName =
   | 'setup'
   | 'account'
   | 'admin'
-  | 'surf'
   | 'surfreview'
   | 'surfsetup'
   | 'plus'
@@ -96,9 +95,6 @@ const ICONS: Record<IconName, string> = {
   // A key rather than a person: this account IS a token.
   account: '<circle cx="8.8" cy="12" r="3.4"/><path d="M12.2 12h7.4"/><path d="M16.6 12v2.8M19.2 12v2"/>',
   admin: '<path d="M4.8 11.2l6.4-6.4h7.6v7.6l-6.4 6.4z"/><circle cx="15.4" cy="8.6" r="1.3"/>',
-  // A single wave, and the small mark riding above it: the craving as a swell
-  // that rises and passes, and staying on top of it rather than under it.
-  surf: '<path d="M4.4 15.6a7.8 7.8 0 0 1 15.2 0"/><circle class="fillmark" cx="12" cy="6.2" r="1.6"/>',
   // Three bars of unequal height, no dot on any of them: unlike progress's
   // tally, this is a spread across the day's hours, not a running total with
   // one day picked out.

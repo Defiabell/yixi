@@ -281,6 +281,13 @@ function step2(t: T): string {
  * The dots are rendered here rather than fetched: the row for the walk-through
  * that just ended is written by a beacon whose answer nobody waits for, so the
  * client paints today's dot itself from what it knows.
+ *
+ * The two links below 「再来一次」 are the only way out of the flow into
+ * review or setup — every other step stays exactly as it was (decision 0
+ * above: zero choices while an urge is being surfed). They only appear once
+ * the walk-through is over, which is also the one moment 「回看」/「怎么配」
+ * cost nothing: the record for this urge is already reported by the time this
+ * step is on screen.
  */
 function step3(days: Array<{ total: number; opened: number }>, t: T): string {
   const dots = days.map((d) => `<i class="d n${Math.min(3, d.total)}${d.opened > 0 ? ' op' : ''}"></i>`).join('')
@@ -289,6 +296,10 @@ function step3(days: Array<{ total: number; opened: number }>, t: T): string {
 <p class="a2" id="lost" hidden>${t('这一次没记上。')}</p>
 <div class="month" id="month">${dots}</div>
 <a class="linky" href="/surf">${t('再来一次')}</a>
+<div class="linkrow">
+<a class="linky" href="/surf/review">${t('回看')} ›</a>
+<a class="linky" href="/surf/setup">${t('怎么配')} ›</a>
+</div>
 </section>`
 }
 
@@ -372,6 +383,12 @@ body[data-step="3"] .step[data-step="3"]{display:flex}
 .month .d.op{border:1px solid var(--dot);background:transparent;opacity:1}
 
 a.linky{margin-top:2.4rem;min-height:44px;padding:11px 0;color:var(--dim);font-size:14px}
+
+/* The two step-3 exits, side by side under 再来一次: a lighter tier than that
+   link, so a row that only ever shows once the walk-through is over does not
+   compete with it for attention. */
+.linkrow{display:flex;gap:28px;margin-top:1.2rem;flex-wrap:wrap;justify-content:center}
+.linkrow a.linky{margin-top:0}
 
 .ns{position:fixed;left:0;right:0;bottom:14vh;margin:0;padding:0 32px;text-align:center;color:var(--dim);font-size:.9rem}
 
