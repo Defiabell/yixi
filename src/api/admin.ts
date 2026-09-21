@@ -33,7 +33,7 @@ import { sha256Hex } from '../auth'
 import { countAttemptsPerUser, createUser, listUsers, shanghaiDate } from '../db'
 import { randomHex, sealToken } from '../crypto'
 import { DEFAULT_THEME, escapeHtml, page } from '../ui/layout'
-import { CONSOLE_CSS, consoleHeader } from '../ui/console'
+import { CONSOLE_CSS, consoleHeader, faceFromRequest, type Face } from '../ui/console'
 import { localeOf, translator } from '../i18n'
 import { onboardingCounts } from '../onboarding'
 import { onboardingPanel } from '../ui/onboarding'
@@ -69,8 +69,12 @@ export async function handleAdmin(request: Request, env: Env, user: User): Promi
   if (!user.is_owner) return forbidden()
 
   const url = new URL(request.url)
+  // /admin is of no face, same as /account — see console.ts's module header.
+  // Borrow whichever face the owner was last on rather than always falling
+  // back to 拦截.
+  const face = faceFromRequest(request) ?? undefined
   if (url.pathname === '/admin' && request.method === 'GET') {
-    return await renderAdmin(env, user, null, { locale: localeOf(request, user) })
+    return await renderAdmin(env, user, null, { locale: localeOf(request, user), face })
   }
   if (url.pathname === '/admin/users' && request.method === 'POST') {
     return await handleCreateUser(request, env, user)
@@ -98,17 +102,21 @@ interface OneTime {
 }
 
 async function handleCreateUser(request: Request, env: Env, user: User): Promise<Response> {
+  const face = faceFromRequest(request) ?? undefined
+
   let form: FormData
   try {
     form = await request.formData()
   } catch {
-    return await renderAdmin(env, user, null, { error: '表单没读出来，重试一次。', status: 400 })
+    return await renderAdmin(env, user, null, { error: '表单没读出来，重试一次。', status: 400, face })
   }
 
   const raw = form.get('name')
   const name = typeof raw === 'string' ? raw.trim() : ''
-  if (name.length === 0) return await renderAdmin(env, user, null, { error: '得给这个人起个名字。', status: 400 })
-  if (name.length > 40) return await renderAdmin(env, user, null, { error: '名字太长了，40 个字以内。', status: 400 })
+  if (name.length === 0) return await renderAdmin(env, user, null, { error: '得给这个人起个名字。', status: 400, face })
+  if (name.length > 40) {
+    return await renderAdmin(env, user, null, { error: '名字太长了，40 个字以内。', status: 400, face })
+  }
 
   const token = randomHex(16)
   // Sealed as well as hashed, and it has to happen here: this is the only moment
@@ -126,15 +134,20 @@ async function handleCreateUser(request: Request, env: Env, user: User): Promise
   // and putting it in the redirect's query string would write it into history.
   // The response is `no-store` (layout.ts's default) for the same reason.
   const origin = new URL(request.url).origin
-  return await renderAdmin(env, user, {
-    name,
-    token,
-    // /claim, not /setup: the first thing a new holder should do is bind an
-    // email and password to this token, because a token handed out and then
-    // lost used to mean the history behind it was gone. /setup is one tap away
-    // once they have an account.
-    link: `${origin}/claim`,
-  })
+  return await renderAdmin(
+    env,
+    user,
+    {
+      name,
+      token,
+      // /claim, not /setup: the first thing a new holder should do is bind an
+      // email and password to this token, because a token handed out and then
+      // lost used to mean the history behind it was gone. /setup is one tap
+      // away once they have an account.
+      link: `${origin}/claim`,
+    },
+    { face },
+  )
 }
 
 // --- render ----------------------------------------------------------------
@@ -143,6 +156,8 @@ interface RenderOptions {
   locale?: 'zh' | 'en'
   error?: string
   status?: number
+  /** The face to render the header as — /admin is of no face; see faceFromRequest. */
+  face?: Face
 }
 
 async function renderAdmin(env: Env, user: User, oneTime: OneTime | null, o: RenderOptions = {}): Promise<Response> {
@@ -166,7 +181,7 @@ async function renderAdmin(env: Env, user: User, oneTime: OneTime | null, o: Ren
     attempts: attemptsById.get(u.id) ?? 0,
   }))
 
-  const body = `${consoleHeader(user, 'admin', translator('zh'))}
+  const body = `${consoleHeader(user, 'admin', translator('zh'), o.face)}
 <main>
   <h1>发号</h1>
   <p class="lede">现在任何人都能自己注册，这里只用于线下发号——建一个人、生成 token，把下面那个链接和 token 一起给他，他绑上邮箱和密码之后就和自助注册的人没有区别了。</p>

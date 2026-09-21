@@ -38,21 +38,23 @@ export interface StoredUser extends User {
 
 export async function findUserByTokenHash(db: D1Database, tokenHash: string): Promise<StoredUser | null> {
   return await db
-    .prepare('SELECT id, name, is_owner, created_at, locale, today_goals, token_hash FROM users WHERE token_hash = ?1')
+    .prepare(
+      'SELECT id, name, is_owner, created_at, locale, today_goals, surf_scene, surf_line, token_hash FROM users WHERE token_hash = ?1',
+    )
     .bind(tokenHash)
     .first<StoredUser>()
 }
 
 export async function getUserById(db: D1Database, id: number): Promise<User | null> {
   return await db
-    .prepare('SELECT id, name, is_owner, created_at, locale, today_goals FROM users WHERE id = ?1')
+    .prepare('SELECT id, name, is_owner, created_at, locale, today_goals, surf_scene, surf_line FROM users WHERE id = ?1')
     .bind(id)
     .first<User>()
 }
 
 export async function listUsers(db: D1Database): Promise<User[]> {
   const res = await db
-    .prepare('SELECT id, name, is_owner, created_at, locale, today_goals FROM users ORDER BY id')
+    .prepare('SELECT id, name, is_owner, created_at, locale, today_goals, surf_scene, surf_line FROM users ORDER BY id')
     .all<User>()
   return res.results
 }
@@ -294,7 +296,7 @@ export async function getWebSession(db: D1Database, id: string): Promise<WebSess
 export async function findUserByWebSession(db: D1Database, id: string, now: number): Promise<User | null> {
   return await db
     .prepare(
-      `SELECT u.id, u.name, u.is_owner, u.created_at, u.locale, u.today_goals
+      `SELECT u.id, u.name, u.is_owner, u.created_at, u.locale, u.today_goals, u.surf_scene, u.surf_line
        FROM sessions_web s JOIN users u ON u.id = s.user_id
        WHERE s.id = ?1 AND s.expires_at > ?2`,
     )

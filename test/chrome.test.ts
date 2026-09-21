@@ -16,17 +16,23 @@
 // hand-copied. A page that renders its own chrome fails this file on the day it
 // is added — and so does a page that quietly leaks the other face's tabs.
 //
-// --- two faces ---------------------------------------------------------------
+// --- three faces --------------------------------------------------------------
 //
-// The nav is now two navs: 今日 (/today, /today/goals, /today/review,
-// /today/setup) and 拦截 (/review, /settings, /setup) — all seven pages exist
-// now. So the shape-equality check runs within each face's own page set
-// rather than across all seven, and a handful of checks (which hrefs a face
-// may and may not offer, the owner's extra tab, the a.face switch link) are
-// asserted per face explicitly.
+// The nav is now three navs: 今日 (/today, /today/goals, /today/review,
+// /today/setup), 拦截 (/review, /settings, /setup) and 渡 (/surf/review,
+// /surf/setup). So the shape-equality check runs within each face's own page
+// set rather than across all of them, and a handful of checks (which hrefs a
+// face may and may not offer, the owner's extra tab, the a.face switch link)
+// are asserted per face explicitly. `/surf` itself is the one exception: the
+// ten-minute flow renders no shared header at all, by design, so it has no
+// nav to diff and is covered by its own standalone test instead — and it is
+// deliberately not a tab on its own face either, because it writes an `urges`
+// row on load, and a nav entry would let browsing between faces silently
+// start a record. The face's home is /surf/review, not /surf.
 
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
+import worker from '../src/index'
 import { handleToday } from '../src/ui/today'
 import { handleGoals } from '../src/ui/goals'
 import { renderTodaySetup } from '../src/ui/todaysetup'
@@ -35,12 +41,16 @@ import { handleSettings } from '../src/ui/settings'
 import { renderReview } from '../src/ui/review'
 import { renderSetup } from '../src/ui/setup'
 import { handleAccount } from '../src/ui/account'
+import { handleSurf } from '../src/ui/surf'
+import { renderSurfReview } from '../src/ui/surfreview'
+import { handleSurfSetup } from '../src/ui/surfsetup'
 import { handleAdmin } from '../src/api/admin'
-import { CONSOLE_CSS } from '../src/ui/console'
+import { CONSOLE_CSS, FACE_COOKIE, faceForPath } from '../src/ui/console'
 import { breathePage } from '../src/ui/breathe'
 import { renderLanding } from '../src/ui/landing'
 import { renderMock } from '../src/ui/mock'
 import { DEFAULT_THEME } from '../src/ui/layout'
+import { COOKIE_NAME, issueCookie } from '../src/auth'
 import { upsertUserApp } from '../src/db'
 import type { User } from '../src/types'
 
@@ -55,6 +65,7 @@ async function reset(): Promise<void> {
     env.DB.prepare('DELETE FROM goal_checkins'),
     env.DB.prepare('DELETE FROM goal_tasks'),
     env.DB.prepare('DELETE FROM goals'),
+    env.DB.prepare('DELETE FROM sessions_web'),
     env.DB.prepare('DELETE FROM users'),
   ])
   await env.DB.prepare(
@@ -76,12 +87,22 @@ beforeEach(reset)
 
 type PageFn = (u: User) => Promise<Response>
 
+/**
+ * /account with a `yixi_face` cookie for the given face — used below to fold
+ * /account into each face's own shape-equality check, now that its header
+ * borrows the remembered face instead of always falling back to 拦截.
+ */
+function accountAs(face: 'today' | 'breathe' | 'surf'): PageFn {
+  return (u) => handleAccount(new Request(`${BASE}/account`, { headers: { cookie: `${FACE_COOKIE}=${face}` } }), env, u)
+}
+
 /** The 今日 face — all four pages now exist. */
 const TODAY_PAGES: Record<string, PageFn> = {
   today: (u) => handleToday(new Request(`${BASE}/today`, { headers: { 'user-agent': 'x' } }), env, u),
   goals: (u) => handleGoals(new Request(`${BASE}/today/goals`), env, u),
   progress: (u) => renderProgress(new Request(`${BASE}/today/review`), env, u),
   todaysetup: (u) => renderTodaySetup(new Request(`${BASE}/today/setup`), env, u),
+  account: accountAs('today'),
 }
 
 /** The 拦截 face — the original console. */
@@ -89,11 +110,36 @@ const BREATHE_PAGES: Record<string, PageFn> = {
   review: (u) => renderReview(new Request(`${BASE}/review`), env, u),
   settings: (u) => handleSettings(new Request(`${BASE}/settings`), env, u),
   setup: (u) => renderSetup(new Request(`${BASE}/setup`), env, u),
-  account: (u) => handleAccount(new Request(`${BASE}/account`), env, u),
+  account: accountAs('breathe'),
 }
 
-/** Every page reachable from either face's nav, for checks that don't care which face. */
-const ALL_PAGES: Record<string, PageFn> = { ...TODAY_PAGES, ...BREATHE_PAGES }
+/**
+ * The 渡 face. `/surf` itself is deliberately absent from this table: the
+ * ten-minute flow renders no shared header at all (see the standalone test
+ * below), so it has no nav to diff against its two siblings.
+ */
+const SURF_PAGES: Record<string, PageFn> = {
+  surfreview: (u) => renderSurfReview(new Request(`${BASE}/surf/review`), env, u),
+  surfsetup: (u) => handleSurfSetup(new Request(`${BASE}/surf/setup`), env, u),
+  account: accountAs('surf'),
+}
+
+/**
+ * Every page reachable from any face's nav, for checks that don't care which
+ * face. `account` is pinned back to the plain, no-cookie render rather than
+ * whichever face-specific variant the object spread below would otherwise
+ * leave behind (the three maps above all key their own /account render as
+ * `account`, and a later spread silently wins over an earlier one) — the
+ * checks that iterate this table care about universal properties (one
+ * header, noindex, a link to /account, nothing below 11px), not about which
+ * face's variant they happen to be looking at.
+ */
+const ALL_PAGES: Record<string, PageFn> = {
+  ...TODAY_PAGES,
+  ...BREATHE_PAGES,
+  ...SURF_PAGES,
+  account: (u) => handleAccount(new Request(`${BASE}/account`), env, u),
+}
 
 async function html(pages: Record<string, PageFn>, name: string, u: User = user): Promise<string> {
   const res = await pages[name]!(u)
@@ -113,7 +159,7 @@ function shape(nav: string): string {
 
 describe('one nav a face, on every signed-in page', () => {
   it('renders byte-identical tabs within a face, marker aside', async () => {
-    for (const pages of [TODAY_PAGES, BREATHE_PAGES]) {
+    for (const pages of [TODAY_PAGES, BREATHE_PAGES, SURF_PAGES]) {
       const names = Object.keys(pages)
       const shapes = new Map<string, string>()
       for (const name of names) shapes.set(name, shape(navOf(await html(pages, name), name)))
@@ -161,6 +207,22 @@ describe('one nav a face, on every signed-in page', () => {
     }
   })
 
+  it('gives the 渡 face its two hrefs and none of the other two faces’', async () => {
+    for (const name of Object.keys(SURF_PAGES)) {
+      const nav = navOf(await html(SURF_PAGES, name), name)
+      for (const href of ['/surf/review', '/surf/setup', '/account']) {
+        expect(nav, `${name} has no link to ${href}`).toContain(`href="${href}"`)
+      }
+      // /surf itself writes an `urges` row on load, so it must never be a tab —
+      // that would let switching faces silently start a record.
+      expect(nav, `${name} offers /surf as a tab`).not.toMatch(/href="\/surf"/)
+      expect(nav, `${name} leaked a 今日 href`).not.toMatch(/href="\/today"/)
+      expect(nav, `${name} leaked a 拦截 href`).not.toMatch(/href="\/review"/)
+      expect(nav, `${name} leaked an admin href`).not.toMatch(/href="\/admin"/)
+      expect(nav.match(/<a /g), `${name} tab count`).toHaveLength(3)
+    }
+  })
+
   it('marks the page you are on, and only that one', async () => {
     for (const name of Object.keys(ALL_PAGES)) {
       const nav = navOf(await html(ALL_PAGES, name), name)
@@ -183,6 +245,8 @@ describe('one nav a face, on every signed-in page', () => {
       settings: '/settings',
       setup: '/setup',
       account: '/account',
+      surfreview: '/surf/review',
+      surfsetup: '/surf/setup',
     }
     for (const name of Object.keys(ALL_PAGES)) {
       const nav = navOf(await html(ALL_PAGES, name), name)
@@ -192,14 +256,30 @@ describe('one nav a face, on every signed-in page', () => {
     }
   })
 
-  it('offers a small a.face link to the other face’s home, beside the brand', async () => {
+  /**
+   * Three faces now exist (今日, 拦截, 渡), so the switch beside the brand is
+   * one `a.face` per face OTHER than the one you are on — two links, not
+   * one — each pointing at that face's home (/today, /review or
+   * /surf/review — not /surf, which writes a record on load).
+   */
+  it('offers an a.face link to each of the other faces’ homes, beside the brand', async () => {
     for (const name of Object.keys(TODAY_PAGES)) {
       const page = await html(TODAY_PAGES, name)
+      expect(page.match(/<a class="face" /g), `${name} a.face count`).toHaveLength(2)
       expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/review">拦截\s*›<\/a>/)
+      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/surf\/review">渡\s*›<\/a>/)
     }
     for (const name of Object.keys(BREATHE_PAGES)) {
       const page = await html(BREATHE_PAGES, name)
+      expect(page.match(/<a class="face" /g), `${name} a.face count`).toHaveLength(2)
       expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/today">今日\s*›<\/a>/)
+      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/surf\/review">渡\s*›<\/a>/)
+    }
+    for (const name of Object.keys(SURF_PAGES)) {
+      const page = await html(SURF_PAGES, name)
+      expect(page.match(/<a class="face" /g), `${name} a.face count`).toHaveLength(2)
+      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/today">今日\s*›<\/a>/)
+      expect(page, `${name} a.face`).toMatch(/<a class="face" href="\/review">拦截\s*›<\/a>/)
     }
   })
 
@@ -212,6 +292,11 @@ describe('one nav a face, on every signed-in page', () => {
     for (const name of Object.keys(TODAY_PAGES)) {
       const nav = navOf(await html(TODAY_PAGES, name, owner), `${name} (owner)`)
       expect(nav.match(/<a /g), `${name} owner tab count`).toHaveLength(5)
+      expect(nav, `${name} owner should have no 发号`).not.toContain('/admin')
+    }
+    for (const name of Object.keys(SURF_PAGES)) {
+      const nav = navOf(await html(SURF_PAGES, name, owner), `${name} (owner)`)
+      expect(nav.match(/<a /g), `${name} owner tab count`).toHaveLength(3)
       expect(nav, `${name} owner should have no 发号`).not.toContain('/admin')
     }
     const adminNav = navOf(await (await handleAdmin(new Request(`${BASE}/admin`), env, owner)).text(), 'admin')
@@ -230,6 +315,11 @@ describe('one nav a face, on every signed-in page', () => {
       expect(nav.match(/<svg /g), `${name} tab icons`).toHaveLength(4)
       expect(nav.match(/<span class="lb">/g), `${name} tab labels`).toHaveLength(4)
     }
+    for (const name of Object.keys(SURF_PAGES)) {
+      const nav = navOf(await html(SURF_PAGES, name), name)
+      expect(nav.match(/<svg /g), `${name} tab icons`).toHaveLength(3)
+      expect(nav.match(/<span class="lb">/g), `${name} tab labels`).toHaveLength(3)
+    }
   })
 
   it('lets no page ship a second <header> of its own', async () => {
@@ -239,6 +329,145 @@ describe('one nav a face, on every signed-in page', () => {
       // /review's private copy is gone; nobody may style the nav back down.
       expect(page.split('${')[0]).not.toMatch(/header nav\s*\{[^}]*font-size/)
     }
+  })
+
+  /**
+   * /surf — the ten-minute flow itself, as opposed to its two console
+   * siblings above — is the one signed-in page that renders NO shared
+   * header at all, by design: it is opened at the exact moment somebody is
+   * reaching for a distraction, and the nav chrome (a face switch, four
+   * tabs) has nothing to do with the five-step walkthrough. This is not an
+   * oversight the byte-identical-nav check above should ever "fix".
+   */
+  it('renders no <header> on /surf itself — the flow page owns its own chrome', async () => {
+    const page = await (await handleSurf(new Request(`${BASE}/surf`), env, user)).text()
+    expect(page.match(/<header>/g), 'the flow page must not have grown a shared header').toBeNull()
+  })
+})
+
+/**
+ * The bug this cookie fixes: 「点击账号按钮之后就会跳转到拦截主题」. /account
+ * and /admin belong to no face, and `faceOf` used to fall back to 拦截
+ * unconditionally, so opening 账号 from 今日 or 渡 silently swapped the whole
+ * header out from under the reader. `yixi_face` remembers the last face a
+ * real page visit resolved (`faceForPath`, applied by src/index.ts) so a
+ * face-less page can render with that face instead.
+ */
+describe('yixi_face cookie: /account borrows the remembered face', () => {
+  async function accountHtml(cookie?: string): Promise<string> {
+    const init = cookie ? { headers: { cookie } } : undefined
+    const res = await handleAccount(new Request(`${BASE}/account`, init), env, user)
+    return await res.text()
+  }
+
+  it('shows the 渡 nav and facename with yixi_face=surf', async () => {
+    const page = await accountHtml(`${FACE_COOKIE}=surf`)
+    const nav = navOf(page, 'account (surf cookie)')
+    expect(nav).toContain('href="/surf/review"')
+    expect(nav).toContain('href="/surf/setup"')
+    expect(nav).toContain('href="/account"')
+    expect(nav, 'leaked a 今日 href').not.toMatch(/href="\/today"/)
+    expect(nav, 'leaked a 拦截 href').not.toMatch(/href="\/review"/)
+    expect(page).toContain('class="facename">· 渡</span>')
+  })
+
+  it('shows the 今日 nav and facename with yixi_face=today', async () => {
+    const page = await accountHtml(`${FACE_COOKIE}=today`)
+    const nav = navOf(page, 'account (today cookie)')
+    expect(nav).toContain('href="/today"')
+    expect(nav).toContain('href="/today/goals"')
+    expect(nav).toContain('href="/account"')
+    expect(nav, 'leaked a 拦截 href').not.toMatch(/href="\/review"/)
+    expect(nav, 'leaked a 渡 href').not.toMatch(/href="\/surf\/review"/)
+    expect(page).toContain('class="facename">· 今日</span>')
+  })
+
+  it('falls back to 拦截, as before, with no cookie or an unrecognised value', async () => {
+    for (const cookie of [undefined, `${FACE_COOKIE}=bogus`, `${FACE_COOKIE}=`]) {
+      const page = await accountHtml(cookie)
+      const nav = navOf(page, `account (${cookie ?? 'no cookie'})`)
+      expect(nav, `${cookie}: href`).toContain('href="/review"')
+      expect(nav, `${cookie}: href`).toContain('href="/settings"')
+      expect(nav, `${cookie}: href`).toContain('href="/setup"')
+      expect(page, `${cookie}: facename`).toContain('class="facename">· 拦截</span>')
+    }
+  })
+})
+
+/**
+ * The cookie itself is only ever written by the router, on a page visit that
+ * resolves to a real face — `handleAccount` above never sets it, and neither
+ * does `handleAdmin`, which is what keeps opening 账号 from cooking its own
+ * remembered face right back out from under it.
+ */
+describe('yixi_face cookie: written by the router, only on real face pages', () => {
+  async function signedIn(path: string): Promise<Response> {
+    const cookie = await issueCookie(env, user)
+    const sessionValue = cookie.split(';')[0]!.slice(COOKIE_NAME.length + 1)
+    return await worker.fetch(
+      new Request(`${BASE}${path}`, { headers: { Cookie: `${COOKIE_NAME}=${sessionValue}`, 'user-agent': 'x' } }),
+      env,
+    )
+  }
+
+  it('sets yixi_face=surf on /surf/review', async () => {
+    const res = await signedIn('/surf/review')
+    expect(res.headers.get('set-cookie')).toContain(`${FACE_COOKIE}=surf`)
+  })
+
+  it('sets yixi_face=today on /today', async () => {
+    const res = await signedIn('/today')
+    expect(res.headers.get('set-cookie')).toContain(`${FACE_COOKIE}=today`)
+  })
+
+  it('sets yixi_face=breathe on /review', async () => {
+    const res = await signedIn('/review')
+    expect(res.headers.get('set-cookie')).toContain(`${FACE_COOKIE}=breathe`)
+  })
+
+  it('does not set yixi_face on /account itself — that is the whole point', async () => {
+    const res = await signedIn('/account')
+    expect(res.headers.get('set-cookie')).toBeNull()
+  })
+
+  it('never sets yixi_face on a /gate or /b response', async () => {
+    const gate = await worker.fetch(new Request(`${BASE}/gate?app=xhs`), env)
+    expect(gate.headers.get('set-cookie')).toBeNull()
+    const b = await worker.fetch(new Request(`${BASE}/b`), env)
+    expect(b.headers.get('set-cookie')).toBeNull()
+  })
+})
+
+describe('faceForPath', () => {
+  it('maps every 今日 path, segment-aware rather than by prefix', () => {
+    expect(faceForPath('/today')).toBe('today')
+    expect(faceForPath('/today/goals')).toBe('today')
+    expect(faceForPath('/today/review')).toBe('today')
+    expect(faceForPath('/today/setup')).toBe('today')
+    // Not a prefix match: `/todayx` is a different path, not `/today` with
+    // something appended.
+    expect(faceForPath('/todayx')).toBeNull()
+  })
+
+  it('maps every 渡 path, including /surf itself — the flow page, no header', () => {
+    expect(faceForPath('/surf')).toBe('surf')
+    expect(faceForPath('/surf/review')).toBe('surf')
+    expect(faceForPath('/surf/setup')).toBe('surf')
+    expect(faceForPath('/surfing')).toBeNull()
+  })
+
+  it('maps the three 拦截 pages, and only those exact paths', () => {
+    expect(faceForPath('/review')).toBe('breathe')
+    expect(faceForPath('/settings')).toBe('breathe')
+    expect(faceForPath('/setup')).toBe('breathe')
+  })
+
+  it('answers null for the face-less pages and everything else', () => {
+    expect(faceForPath('/account')).toBeNull()
+    expect(faceForPath('/admin')).toBeNull()
+    expect(faceForPath('/')).toBeNull()
+    expect(faceForPath('/gate')).toBeNull()
+    expect(faceForPath('/b')).toBeNull()
   })
 })
 

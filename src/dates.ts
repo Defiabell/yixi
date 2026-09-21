@@ -112,3 +112,28 @@ export function addDays(date: string, days: number): string {
   const t = Date.UTC(y, m - 1, d) + days * 86_400_000
   return new Date(t).toISOString().slice(0, 10)
 }
+
+// --- shanghaiHour -----------------------------------------------------------
+//
+// /surf/review's 24-slot hour distribution needs the hour-of-day half of the
+// same Asia/Shanghai reading src/db.ts's shanghaiDate() takes for the date
+// half — they must never drift onto different clocks, or a slot chart and its
+// own day totals would disagree about which side of midnight an urge fell on.
+
+const HOUR_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Shanghai',
+  hour: 'numeric',
+  hour12: false,
+})
+
+/**
+ * 0-23, Asia/Shanghai. `hour12: false` still hands back `'24'` for local
+ * midnight rather than `'0'` — an Intl quirk, not a Shanghai one — so that
+ * case is folded back to 0 explicitly instead of trusting the formatter's
+ * own range.
+ */
+export function shanghaiHour(ts: number): number {
+  const formatted = HOUR_FORMATTER.format(new Date(ts))
+  const hour = Number(formatted)
+  return hour === 24 ? 0 : hour
+}

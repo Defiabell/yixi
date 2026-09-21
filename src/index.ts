@@ -9,8 +9,12 @@ import { handleToday } from './ui/today'
 import { handleGoals } from './ui/goals'
 import { renderTodaySetup } from './ui/todaysetup'
 import { renderProgress } from './ui/progress'
-import { iconResponse, manifestResponse } from './ui/pwa'
+import { handleSurf } from './ui/surf'
+import { renderSurfReview } from './ui/surfreview'
+import { handleSurfSetup } from './ui/surfsetup'
+import { iconResponse, manifestResponse, surfIconResponse, surfManifestResponse } from './ui/pwa'
 import { handleCandidates } from './api/candidates'
+import { faceCookie, faceForPath } from './ui/console'
 import {
   handleAccount,
   handleClaim,
@@ -123,6 +127,11 @@ export default {
       // cookie when the icon is added, and nothing in them is per-user.
       if (path === '/manifest.webmanifest' && method === 'GET') return manifestResponse()
       if (path === '/icon.png' && method === 'GET') return iconResponse()
+      // 「渡」 installs as its own home-screen app, so it has its own pair. A
+      // second `<link rel=manifest>` is what makes iOS create a second app
+      // rather than a shortcut into the one already installed for /today.
+      if (path === '/surf/manifest.webmanifest' && method === 'GET') return surfManifestResponse()
+      if (path === '/surf/icon.png' && method === 'GET') return surfIconResponse()
 
       // Sign-up and sign-in must answer before authenticate(), or the only way
       // to get an account would be to already have one. Registration being open
@@ -163,6 +172,9 @@ export default {
 
       let res: Response
       if (path === '/today') res = await handleToday(request, env, user)
+      else if (path === '/surf') res = await handleSurf(request, env, user)
+      else if (path === '/surf/review' && method === 'GET') res = await renderSurfReview(request, env, user)
+      else if (path === '/surf/setup') res = await handleSurfSetup(request, env, user)
       else if (path === '/today/goals') res = await handleGoals(request, env, user)
       else if (path === '/today/setup' && method === 'GET') res = await renderTodaySetup(request, env, user)
       else if (path === '/today/review' && method === 'GET') res = await renderProgress(request, env, user)
@@ -192,6 +204,12 @@ export default {
       else if (path.startsWith('/admin')) res = await handleAdmin(request, env, user)
       else return notFound()
 
+      // Which face this visit belongs to, if any — /account and /admin are of
+      // no face (see console.ts's module header) and so leave the cookie
+      // alone, which is exactly what lets them borrow whichever face was last
+      // remembered instead of always falling back to 拦截.
+      const face = faceForPath(path)
+
       // First visit arrived with ?k=<token>. Set the cookie and bounce to the
       // same path without it, rather than rendering the page at a URL that has
       // the user's whole identity in it — that URL is one screenshot, one shared
@@ -200,15 +218,18 @@ export default {
       if (seededFromToken) {
         const clean = new URL(url)
         clean.searchParams.delete('k')
-        return new Response(null, {
-          status: 303,
-          headers: {
-            location: clean.pathname + (clean.search || ''),
-            'set-cookie': await issueCookie(env, user),
-            'cache-control': 'no-store',
-          },
+        const headers = new Headers({
+          location: clean.pathname + (clean.search || ''),
+          'cache-control': 'no-store',
         })
+        // Two independent cookies, appended rather than assigned: a second
+        // `set-cookie` key on the same header object would silently clobber
+        // the first, and this seeding path already needs one for the session.
+        headers.append('set-cookie', await issueCookie(env, user))
+        if (face) headers.append('set-cookie', faceCookie(face))
+        return new Response(null, { status: 303, headers })
       }
+      if (face) res.headers.append('set-cookie', faceCookie(face))
       return res
     } catch (err) {
       console.error('unhandled', redact(err))
@@ -280,6 +301,7 @@ function robotsTxt(origin: string): Response {
     'Disallow: /review',
     'Disallow: /setup',
     'Disallow: /settings',
+    'Disallow: /surf',
     'Disallow: /account',
     'Disallow: /admin',
     'Disallow: /login',

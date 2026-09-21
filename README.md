@@ -38,7 +38,7 @@ The few things that matter for the coming weeks on one page you open every morni
   <sub>An open instance, free, nothing to deploy. Or <a href="#deploy-your-own-15-min">run your own</a> in fifteen minutes.</sub>
 </p>
 
-**Who this is for:** anyone who wants a nudge rather than a wall. It is friction, not enforcement — the automation is one toggle away from off, on purpose.
+**Who this is for:** anyone who wants a nudge rather than a wall. It is friction, not enforcement — the automation is one toggle away from off, on purpose. A third face, Surf (渡): when an urge shows up, tap it, and it walks you through ten minutes.
 
 The open instance is the quickest way in. If you would rather not keep a minute-by-minute log of your worst impulses on someone else's server, deploy your own in fifteen minutes; it is the same code either way.
 
@@ -69,6 +69,9 @@ Three that apply to the whole product. The per-face lists are in [docs/breathe.m
 | `GET /api/candidates` | you | JSON: type an app name, get candidate URL schemes with sources. Fetched by the URL scheme field on `/settings` and `/today/goals`; not a page |
 | `/lookup` `/probe` | — | kept as 302s to `/settings`. Both were pages once; finding and testing a scheme is now part of the field that needs it, so old links and bookmarks still land somewhere useful |
 | `/setup` | you | the Shortcut walkthrough, with your own host and token filled in |
+| `/surf` | you | the Surf (渡) ten-minute flow: put the phone down, let it pass, then decide again. Nothing on it asks you anything |
+| `/surf/review` | you | Surf's 30-day look-back: urge counts, the passed/opened ratio, and what time of day they come. Also the entry point for the 渡 face |
+| `/surf/setup` | you | pick your scene, once |
 | `/account` | you | read your gate token back, change your password, sign out |
 | `/mock?v=1\|2` | anyone | the two candidate visual skins, side by side |
 | `/admin` | owner | mint a token for someone offline; see per-user attempt counts |
@@ -77,7 +80,7 @@ Three that apply to the whole product. The per-face lists are in [docs/breathe.m
 
 Anything else is a 404. There is no detail endpoint under `/admin` to guess at — see [SECURITY.md](SECURITY.md).
 
-Each face carries its own nav — 「今日」 for `/today` and behind it, 「拦截」 for the breathing pages and behind them — with a small link to the other, and both share the same login.
+Each face carries its own nav — 「今日」 for `/today` and behind it, 「拦截」 for the breathing pages and behind them, 「渡」 for `/surf` and behind it — with a small link to each of the others, and all three share the same login.
 
 ## Why it deploys twice
 
@@ -157,7 +160,7 @@ npm run deploy    # applies migrations against the remote D1, then deploys
 
 Migrations only need to run once; the Pages deployment shares the same database.
 
-**Always deploy with `npm run deploy`, never a bare `wrangler deploy`** — it is the migrations-then-deploy order that keeps the two in step. The current Worker needs `0006_user_locale.sql` and `0008_today_goals.sql` in particular: `/gate` reads `users.locale` and `users.today_goals` on its way to knowing who you are, so a Worker deployed against a database without those columns stops intercepting anything.
+**Always deploy with `npm run deploy`, never a bare `wrangler deploy`** — it is the migrations-then-deploy order that keeps the two in step. The current Worker needs `0006_user_locale.sql`, `0008_today_goals.sql` and `0011_surf_scene.sql` in particular: `/gate` reads `users.locale`, `users.today_goals`, `users.surf_scene` and `users.surf_line` on its way to knowing who you are, so a Worker deployed against a database without those columns stops intercepting anything.
 
 ### 5. Deploy Pages
 
@@ -234,7 +237,7 @@ npx wrangler d1 execute yixi --remote --command \
 | Rendering | server-side HTML, inline CSS/JS, zero external requests (CSP-enforced) — one exception: the Turnstile widget on `/register`, only when configured |
 | Crypto | WebCrypto only — PBKDF2-SHA256 passwords, AES-GCM token sealing |
 | Client | iOS Shortcuts + Safari |
-| Tests | 709 tests over 30 files (Vitest + `@cloudflare/vitest-pool-workers`) |
+| Tests | 843 tests over 36 files (Vitest + `@cloudflare/vitest-pool-workers`) |
 | Cost | fits inside Cloudflare's free tier |
 
 ## Project layout
@@ -247,6 +250,8 @@ src/account.ts      register / login / claim / recover; the closed recovery loop
 src/crypto.ts       PBKDF2 passwords, AES-GCM token sealing, random hex
 src/db.ts           every D1 statement in the app, and nothing else
 src/stats.ts        /review aggregation; the grace_pass exclusion lives here
+src/urges.ts        D1 helpers for the urges table, plus the pure aggregation /surf/review reads off them
+src/surfscenes.ts   the five 渡 scenes: opening line and three body exits each, and how a stored scene resolves
 src/snapshot.ts      the goal_days snapshot: what /today showed, what got done
 src/ratelimit.ts    per-IP fixed-window throttle for the open endpoints
 src/turnstile.ts    the optional /register challenge, and its fail-open rules
@@ -256,13 +261,17 @@ src/types.ts        Env, User, event kinds, the shared constants
 src/dates.ts        'YYYY-MM-DD' arithmetic shared by /today and /today/goals
 src/ui/*.ts         one module per page, all server-rendered
 src/ui/schemefield.ts  the URL-scheme picker field shared by /settings and /today/goals
+src/ui/breathing.ts the breathing orb shared by /b and /surf: markup, CSS and timing
 src/ui/pwa.ts       the home-screen manifest and icon — public, no per-user data
 src/ui/today.ts     /today — the morning page: goals, today's sub-tasks, seven-day dots
 src/ui/goals.ts     /today/goals — add, edit, reorder and archive goals
 src/ui/progress.ts  /today/review — looking back: the 30-day strip, per-goal check-in rate
 src/ui/todaysetup.ts  /today/setup — home screen, Shortcut and timed-automation walkthrough
+src/ui/surf.ts      /surf — the ten-minute urge-surfing flow, one document, four steps, no questions
+src/ui/surfreview.ts  /surf/review — the 30-day look-back over recorded urges
+src/ui/surfsetup.ts  /surf/setup — pick the scene once, plus the home-screen and Shortcut entry points
 src/api/admin.ts    the owner's ticket window, and the privacy line
-migrations/*.sql    D1 schema, six migrations
+migrations/*.sql    D1 schema, eleven migrations
 scripts/icon.mjs    regenerates the base64 PNG baked into src/ui/pwa.ts
 pages/              Pages entry point (one line) + its own wrangler.toml
 shortcut/README.md  why the Shortcut is shaped the way it is

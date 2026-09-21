@@ -29,6 +29,10 @@ import { handleAccount, handleClaim, handleLogin, handleRecover, handleRegister 
 import { handleSettings } from '../src/ui/settings'
 import { renderReview } from '../src/ui/review'
 import { fillBody, renderSetup } from '../src/ui/setup'
+import { handleSurf } from '../src/ui/surf'
+import { renderSurfReview } from '../src/ui/surfreview'
+import { handleSurfSetup } from '../src/ui/surfsetup'
+import { createUrge, finishUrge } from '../src/urges'
 import { createGoal, createTask, shanghaiDate, toggleCheckin, updateTaskTarget, upsertUserApp } from '../src/db'
 import { register } from '../src/account'
 import type { User } from '../src/types'
@@ -57,6 +61,7 @@ async function reset(): Promise<void> {
     env.DB.prepare('DELETE FROM goal_tasks'),
     env.DB.prepare('DELETE FROM goals'),
     env.DB.prepare('DELETE FROM user_apps'),
+    env.DB.prepare('DELETE FROM urges'),
     env.DB.prepare('DELETE FROM users'),
   ])
   await env.DB.prepare(
@@ -748,6 +753,149 @@ describe('/setup in English', () => {
 })
 
 // ============================================================================
+// /surf, /surf/review, /surf/setup — the 渡 face
+// ============================================================================
+
+describe('/surf in English', () => {
+  async function surfHtml(en = true, u: User = user): Promise<string> {
+    return await (await handleSurf(new Request(`${BASE}/surf`, { headers: headers(en) }), env, u)).text()
+  }
+
+  it('declares the language and translates the opening screen', async () => {
+    const html = await surfHtml(true, { ...user, surf_scene: 'feed' })
+    expect(html).toContain('<html lang="en">')
+    expect(html).toContain('<title>Surf · 一息</title>')
+    const main = inside(html, '<main class="flow">')
+    expect(main).toContain('<h1>An urge came.</h1>')
+    expect(main).toContain('The fingers want to move. You do not want to watch.')
+    expect(main).toContain('Put the phone down and go to another room. Tap again when you are back.')
+    expect(main).toContain('I am up')
+    expect(main).not.toMatch(CHINESE_PUNCT)
+  })
+
+  it('translates step 1 whole: both scene tasks, the five titles and the grounding lines', async () => {
+    const html = await surfHtml(true, { ...user, surf_scene: 'snack' })
+    for (const line of [
+      // The chosen scene's own two tasks — segment a's errand and segment d's.
+      'Drink a glass of warm water, slowly, all of it.',
+      'Brush your teeth.',
+      'Your hands',
+      'Your eyes',
+      'Around you',
+      'Your body',
+      'Breath',
+      'Tap it.',
+      'Follow it.',
+      // The first grounding line is on the page; the other four ride in the
+      // config island, and an untranslated one would switch the segment back
+      // into Chinese on its second tap.
+      'Find five blue things in the room.',
+      'Name one taste in your mouth right now.',
+      // The only counted string in the product, placeholder intact so the
+      // script can fill it per beat.
+      'Number {n}',
+    ]) {
+      expect(html, line).toContain(line)
+    }
+  })
+
+  it('translates the neutral default for an account that never picked a scene, and its setup link', async () => {
+    const main = inside(await surfHtml(), '<main class="flow">')
+    expect(main).toContain('It will pass.')
+    expect(main).toContain('Tell me which one this is first')
+    expect(main).not.toMatch(CHINESE_PUNCT)
+  })
+
+  it('translates the remaining steps, the parting lines and the noscript fallback', async () => {
+    const html = await surfHtml()
+    const main = inside(html, '<main class="flow">')
+    expect(main).toContain('Ten minutes.')
+    expect(main).toContain('It passed')
+    expect(main).toContain('Still there')
+    expect(main).toContain('Another ten minutes')
+    expect(main).toContain('I opened it')
+    expect(main).toContain('Again')
+    expect(html).toContain('This page needs JavaScript. Go back to the home screen and open it again.')
+    expect(main).not.toMatch(CHINESE_PUNCT)
+  })
+
+  it('renders no <header> at all, in either language — the flow page owns its own chrome', async () => {
+    expect(await surfHtml()).not.toContain('<header>')
+  })
+})
+
+describe('/surf/review in English', () => {
+  it('translates the empty state and the 渡 face nav', async () => {
+    const html = await (await renderSurfReview(new Request(`${BASE}/surf/review`, { headers: EN }), env, user)).text()
+
+    expect(html).toContain('<html lang="en">')
+    expect(html).toContain('<title>Review · Alex</title>')
+    const main = mainOf(html)
+    expect(main).toContain('<h1>Review</h1>')
+    expect(main).toContain('Nothing recorded yet. When an urge comes, tap “Surf” on the home screen.')
+    expect(main).not.toMatch(CHINESE_PUNCT)
+
+    const nav = html.match(/<nav aria-label="Navigation">([\s\S]*?)<\/nav>/)
+    expect(nav, 'nav missing or still labelled in Chinese').toBeTruthy()
+    // 'Surf' (渡) is deliberately not among these: /surf writes an `urges` row
+    // on load, so it is not a tab on its own face's nav — see console.ts.
+    for (const label of ['Review', 'Guide', 'Account']) {
+      expect(nav![1]).toContain(`<span class="lb">${label}</span>`)
+    }
+  })
+
+  it('translates both cards and the counts', async () => {
+    const passed = await createUrge(env.DB, { userId: 1, state: '', trigger: 'lust', now: NOW })
+    await finishUrge(env.DB, 1, passed, 'passed', NOW)
+    const opened = await createUrge(env.DB, { userId: 1, state: '', trigger: '', now: NOW })
+    await finishUrge(env.DB, 1, opened, 'opened', NOW)
+
+    const html = await (await renderSurfReview(new Request(`${BASE}/surf/review`, { headers: EN }), env, user)).text()
+    const main = mainOf(html)
+    expect(main).toContain('<h2>30 days</h2>')
+    expect(main).toContain('<h2>Time of day</h2>')
+    expect(main).toContain('Surfed 2 times in 30 days')
+    expect(main).toContain('Passed 1')
+    expect(main).toContain('Opened it 1')
+    expect(main).not.toMatch(CHINESE_PUNCT)
+  })
+})
+
+describe('/surf/setup in English', () => {
+  it('translates the form, the five scenes and the two entry points', async () => {
+    const html = await (await handleSurfSetup(new Request(`${BASE}/surf/setup`, { headers: EN }), env, user)).text()
+
+    expect(html).toContain('<html lang="en">')
+    const main = mainOf(html)
+    expect(main).toContain('<h1>Guide</h1>')
+    expect(main).toContain(
+      'You pick once. After that, an urge means you open this and the flow starts, with nothing left to answer.',
+    )
+    for (const label of ['Lust', 'Short video', 'Games', 'Late-night eating', 'Something else']) {
+      expect(main, label).toContain(`<span>${label}</span>`)
+    }
+    expect(main).toContain('Write your own')
+    expect(main).toContain('One line for yourself in that moment')
+    expect(main).toContain('>Save</button>')
+    expect(main).toContain('<h2>Access</h2>')
+    expect(main).toContain(
+      'Home screen: open /surf in Safari, then Share → Add to Home Screen, and you get a separate “Surf” icon.',
+    )
+    expect(main).toContain('Shortcuts')
+    expect(main).toContain('/account')
+    expect(main).not.toMatch(CHINESE_PUNCT)
+
+    const nav = html.match(/<nav aria-label="Navigation">([\s\S]*?)<\/nav>/)
+    expect(nav, 'nav missing or still labelled in Chinese').toBeTruthy()
+    // 'Surf' (渡) is deliberately not among these: /surf writes an `urges` row
+    // on load, so it is not a tab on its own face's nav — see console.ts.
+    for (const label of ['Review', 'Guide', 'Account']) {
+      expect(nav![1]).toContain(`<span class="lb">${label}</span>`)
+    }
+  })
+})
+
+// ============================================================================
 // The nav, and the Chinese baseline
 // ============================================================================
 
@@ -835,6 +983,24 @@ describe('with no language header at all, nothing changed', () => {
     expect(setup).toContain('<html lang="zh-Hans">')
     expect(setup).toContain('<h1>怎么配</h1>')
     expect(setup).toContain('先记住一件事：一个 App 一条，各配各的')
+  })
+
+  it('still renders Chinese on the 渡 face — /surf, /surf/review and /surf/setup', async () => {
+    const surf = await (await handleSurf(new Request(`${BASE}/surf`), env, user)).text()
+    expect(surf).toContain('<html lang="zh-Hans">')
+    expect(surf).toContain('<h1>冲动来了。</h1>')
+    expect(surf).toContain('它会过去的。')
+    expect(surf).not.toContain('<header>')
+
+    const review = await (await renderSurfReview(req('/surf/review', false), env, user)).text()
+    expect(review).toContain('<html lang="zh-Hans">')
+    expect(review).toContain('<h1>回看</h1>')
+    expect(review).toContain('还没有记录。冲动来的时候，点主屏上的「渡」。')
+
+    const setup = await (await handleSurfSetup(req('/surf/setup', false), env, user)).text()
+    expect(setup).toContain('<html lang="zh-Hans">')
+    expect(setup).toContain('<h1>怎么配</h1>')
+    expect(setup).toContain('<span>深夜加餐</span>')
   })
 })
 

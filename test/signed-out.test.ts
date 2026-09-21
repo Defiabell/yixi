@@ -31,6 +31,7 @@ describe('signed-out visitors', () => {
   const consolePages = [
     '/review', '/settings', '/probe', '/setup', '/account', '/admin', '/today', '/goals',
     '/today/goals', '/today/review', '/today/setup',
+    '/surf', '/surf/review', '/surf/setup',
   ]
 
   it('sends every console page to the sign-in screen, not a bare 401', async () => {
@@ -117,6 +118,20 @@ describe('signed-out visitors', () => {
     expect(m.status).toBe(200)
     expect(m.headers.get('content-type')).toMatch(/manifest\+json/)
     const i = await get('/icon.png')
+    expect(i.status).toBe(200)
+    expect(i.headers.get('content-type')).toBe('image/png')
+  })
+
+  /**
+   * 「渡」 installs as its own home-screen app, so it needs its own manifest
+   * and icon reachable the same way — before authenticate() ever runs, same
+   * as the pair above.
+   */
+  it('serves the 渡 home-screen files without a login', async () => {
+    const m = await get('/surf/manifest.webmanifest')
+    expect(m.status).toBe(200)
+    expect(m.headers.get('content-type')).toMatch(/manifest\+json/)
+    const i = await get('/surf/icon.png')
     expect(i.status).toBe(200)
     expect(i.headers.get('content-type')).toBe('image/png')
   })
@@ -219,6 +234,7 @@ describe('robots.txt', () => {
       '/review',
       '/setup',
       '/settings',
+      '/surf',
       '/account',
       '/admin',
       '/login',

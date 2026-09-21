@@ -29,9 +29,11 @@ export const EN: Record<string, string> = {
   "留存以首拦后 168 至 192 小时内再次拦截为准，仅纳入已满 192 小时的首拦账号；不要求连续使用。未成熟的窗口不按零计算，分母为零显示 —。": "Retention means another interception from 168 to 192 hours after activation, counting only accounts observed for 192 full hours. Continuous use is not required. Incomplete windows are excluded; an empty denominator displays —.",
 
   // --- shared console chrome (src/ui/console.ts) -----------------------------
-  // The two faces and their tabs. 「回看」 (goal-tending) and 「回顾」
+  // The three faces and their tabs. 「回看」 (goal-tending) and 「回顾」
   // (interception) are both "looking back"; English splits them into Review
-  // and Log so a nav never offers the same word twice.
+  // and Log so a nav never offers the same word twice. 渡's own 「回看」 reuses
+  // the Review entry — same English word, different page, no ambiguity in a
+  // nav that never shows both at once.
   今日: 'Today',
   目标: 'Goals',
   回看: 'Review',
@@ -39,6 +41,7 @@ export const EN: Record<string, string> = {
   回顾: 'Log',
   设置: 'Settings',
   拦截: 'Breathe',
+  渡: 'Surf',
   导航: 'Navigation',
   账号: 'Account',
   发号: 'Invites',
@@ -854,4 +857,108 @@ export const EN: Record<string, string> = {
   "如果你想从一个 App 开始、接受 Safari 跳转并希望能修改源码，可以先试一息。如果你需要 Android、浏览器网站干预或定时屏蔽，先查看 one sec 的对应平台说明。一息没有经过与 one sec 相同的效果研究，不能套用对方的研究数字。": "Try Yixi if you want to start with one app, accept a Safari hand-off and value editable source. For Android, website interventions or scheduled blocking, check one sec’s platform documentation. Yixi has not undergone the same effectiveness studies, so one sec’s research figures do not apply to it.",
   "来源与核对日期": "Sources and review date",
   "一息源码与功能说明": "Yixi source and feature documentation",
+
+  // --- /surf, the ten-minute flow (src/ui/surf.ts) ---------------------------
+  // The voice of the whole face: no praise, no lecture, nothing red, and
+  // 「我点开了」 reads exactly as level as 「过去了」 does. Nothing on this page
+  // asks the reader anything — the scene was picked once at /surf/setup — so
+  // there is no question copy left in this group.
+  '渡 · 一息': 'Surf · 一息',
+  '冲动来了。': 'An urge came.',
+  其他: 'Something else',
+  '放下手机，去另一个房间。回来再点。': 'Put the phone down and go to another room. Tap again when you are back.',
+  先告诉我这是哪一种: 'Tell me which one this is first',
+  我起来了: 'I am up',
+  // Step 1's five segments: a title each, the two buttons that end the two
+  // segments a person ends themselves, and one line of instruction where the
+  // thing on screen is not self-evident. 「呼吸」 is the segment; 「吸气」 and
+  // 「呼气」, the words inside it, are the breathing page's own and sit further
+  // up. 「第 {n} 个」 is the only counted string in the product — see decision
+  // 3 in src/ui/surf.ts for why it exists and why it is the only one.
+  手上的事: 'Your hands',
+  眼睛的事: 'Your eyes',
+  周围的事: 'Around you',
+  身体的事: 'Your body',
+  呼吸: 'Breath',
+  做完了: 'Done',
+  好了: 'Got it',
+  '点它。': 'Tap it.',
+  '跟着它。': 'Follow it.',
+  '第 {n} 个': 'Number {n}',
+  // 5-4-3-2-1 grounding, in the order groundingLines() returns them. Five
+  // senses counting down; the counting down is what makes it finishable.
+  '找出房间里五样蓝色的东西。': 'Find five blue things in the room.',
+  '听出四种不同的声音。': 'Pick out four different sounds.',
+  '摸三种不同的质地。': 'Touch three different textures.',
+  '闻两种气味。': 'Smell two things.',
+  '说出一样你此刻尝到的味道。': 'Name one taste in your mouth right now.',
+  '十分钟了。': 'Ten minutes.',
+  过去了: 'It passed',
+  还想: 'Still there',
+  再来十分钟: 'Another ten minutes',
+  我点开了: 'I opened it',
+  // Four of the five parting lines, in the order farewellLines() returns
+  // them. The fifth, 「放下就好。」, is the breathing page's own and already
+  // has an entry further up.
+  '就到这里。': 'This is where it ends.',
+  '这一阵过去了。': 'That wave has gone by.',
+  '你看着它，它就小了。': 'You watched it, and it got smaller.',
+  '记下了。明天还是新的一天。': 'Noted. Tomorrow is a new day all the same.',
+  // Not a parting line: the quiet notice when the start POST never landed and
+  // this walk-through left no row behind.
+  '这一次没记上。': 'This one was not recorded.',
+  再来一次: 'Again',
+  '添加到主屏幕，下次一步就到。': 'Add it to the home screen, and next time it is one tap.',
+
+  // --- /surf scenes (src/surfscenes.ts, msg()) ------------------------------
+  // One opening line and two tasks a scene, picked once at /surf/setup. The
+  // openings name what the urge usually is, in the fewest words that stay
+  // true; the tasks are things to go and do — an errand for the hands in
+  // segment a, twenty of something for the body in segment d — not advice.
+  // 「其他」 above is the custom scene's own label.
+  色欲: 'Lust',
+  '它不是需要，是最近的一种止痛。': 'It is not a need. It is the nearest painkiller.',
+  '去洗手间，用冷水洗脸，回来点一下。': 'Go to the bathroom, cold water on your face, then come back and tap.',
+  '二十个深蹲。': 'Twenty squats.',
+  短视频: 'Short video',
+  '手指想动，不是你想看。': 'The fingers want to move. You do not want to watch.',
+  '把手机反面朝下放到桌子另一头，站起来倒一杯水，回来点一下。':
+    'Put the phone face down at the far end of the table, stand up and pour a glass of water, then come back and tap.',
+  游戏: 'Games',
+  '想赢的不是你，是上一局。': 'It is not you that wants to win. It is the last round.',
+  '去洗个脸，把明天要做的第一件事说出来。':
+    'Go wash your face, then say out loud the first thing you will do tomorrow.',
+  '二十个开合跳。': 'Twenty jumping jacks.',
+  深夜加餐: 'Late-night eating',
+  '多半是累，不是饿。': 'Mostly this is tiredness, not hunger.',
+  '喝一杯温水，慢慢喝完。': 'Drink a glass of warm water, slowly, all of it.',
+  '刷牙。': 'Brush your teeth.',
+  '它会过去的。': 'It will pass.',
+  // The word for a scene nobody named: an account that never opened
+  // /surf/setup still has something to be called.
+  冲动: 'An urge',
+
+  // --- /surf/review, the 30-day look-back (src/ui/surfreview.ts) ------------
+  现在就渡: 'Surf now',
+  '冲动来的时候，从主屏图标进；这里只看记录。': 'When an urge comes, use the home-screen icon. This page only shows records.',
+  '三十天 {n} 次': 'Surfed {n} times in 30 days',
+  '过去了 {n}': 'Passed {n}',
+  '点开了 {n}': 'Opened it {n}',
+  '另有 {n} 次没走完。': 'Another {n} were not finished.',
+  '还没有记录。冲动来的时候，点主屏上的「渡」。': 'Nothing recorded yet. When an urge comes, tap “Surf” on the home screen.',
+  三十天: '30 days',
+  几点: 'Time of day',
+  最近三十天每天的冲动次数: 'Daily urge count over the last 30 days',
+  每小时的冲动次数分布: 'Urge count by hour of day',
+
+  // --- /surf/setup, picking the scene once and the entry points (src/ui/surfsetup.ts) ---
+  '只需选一次。之后冲动来了，打开就是流程，不再问你任何问题。':
+    'You pick once. After that, an urge means you open this and the flow starts, with nothing left to answer.',
+  自己写一个: 'Write your own',
+  想对那一刻的自己说的一句话: 'One line for yourself in that moment',
+  入口: 'Access',
+  '主屏：在 Safari 打开 /surf，分享 → 添加到主屏幕，会得到一个独立的「渡」图标。':
+    'Home screen: open /surf in Safari, then Share → Add to Home Screen, and you get a separate “Surf” icon.',
+  '快捷指令：新建一个「打开 URL」动作，地址填 {origin}/surf?k=你的令牌（令牌在<a href="/account">账号</a>页），命名为「渡」，就能对 Siri 说。':
+    'Shortcuts: make a new “Open URL” action, with the address {origin}/surf?k=your token (the token is on the <a href="/account">Account</a> page), name it “Surf”, and you can say it to Siri.',
 }

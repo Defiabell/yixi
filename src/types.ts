@@ -52,6 +52,21 @@ export interface User {
    * could reach a page.
    */
   today_goals?: number | null
+  /**
+   * Which 「渡」 scene this reader chose at /surf/setup: a bare `SceneKey`, or
+   * `'custom:'` plus their own words. NULL/unset means they never chose, and
+   * the flow still runs on the neutral default. Optional for the same reason
+   * `today_goals` is above — every existing `User` literal in the test suite
+   * keeps compiling unedited. Read it through `sceneOf`/`sceneTrigger` in
+   * src/surfscenes.ts rather than directly.
+   */
+  surf_scene?: string | null
+  /**
+   * One line this reader wrote for their own worst moment, shown on /surf's
+   * first screen under the scene's opening. NULL/unset/empty means nothing is
+   * shown — it is the whole product's only piece of copy the reader writes.
+   */
+  surf_line?: string | null
 }
 
 export interface UserApp {
@@ -186,3 +201,55 @@ export function todayGoalLimit(user: Pick<User, 'today_goals'>): number {
 }
 /** 到期目标「续一期」的长度。 */
 export const GOAL_EXTEND_DAYS = 28
+
+// --- urges（/surf）----------------------------------------------------------
+
+/**
+ * 身体状态。v1 的第 0 步问过这个，v2 不问了——冲动来时的页面上一个选择都不留，
+ * 所以新行一律写 `''`。枚举和列都保留：历史行还在，`summarizeUrges` 也还按它分桶。
+ */
+export type UrgeState = 'hungry' | 'angry' | 'lonely' | 'tired' | 'none'
+export const URGE_STATES: readonly UrgeState[] = ['hungry', 'angry', 'lonely', 'tired', 'none']
+
+/** 'passed' 过去了；'opened' 我点开了——收尾文案对两者一样安静，不是失败态。 */
+export type UrgeOutcome = 'passed' | 'opened'
+
+/**
+ * 一条冲动流程记录。`outcome`/`ended_at` 为 NULL 表示中途关掉页面，没走完；
+ * `state` 在 v2 里永远是 `''`（那一步已经删掉），`trigger` 是服务端从
+ * `users.surf_scene` 填的场景 key 或自定义文本，`''` = 那个账号还没配过场景。
+ * `note` 同样只剩历史行会有值：v2 的收尾页不再让人打字。
+ */
+export interface Urge {
+  id: number
+  user_id: number
+  started_at: number
+  ended_at: number | null
+  outcome: UrgeOutcome | null
+  state: UrgeState | ''
+  trigger: string
+  rounds: number
+  note: string
+}
+
+/**
+ * 步 1 的兜底上限，不是它的时长。五段小任务里有两段（手上的事、周围的事）只能
+ * 靠人点按钮结束，人可能拿着手机走开、锁屏、睡着——十五分钟到就直接进步 2，
+ * 不管走到第几段。正常走完五段大约八到十分钟。
+ */
+export const SURF_ROUND_MS = 15 * 60 * 1000
+/**
+ * `op=start` 复用一条尚未结束记录的窗口——见 src/ui/surf.ts 里 `findOpenUrge`
+ * 的用法。`start` 现在一加载页面就发，刷新/误触/切回后台标签页都会再发一次，
+ * 没有这个窗口每一次都会新开一行，把「三十天 N 次」的次数吹起来。
+ *
+ * 必须大于两轮兜底（2 × `SURF_ROUND_MS` = 30 分钟）：一个人走完一轮点「再来
+ * 十分钟」、第二轮又靠兜底结束，整段就是 30 分钟；iOS 把后台标签页恢复回来
+ * 时重发的 `start` 要还能认出这是同一次冲动，而不是新开一行。35 分钟是那条
+ * 下界加一点余量。
+ */
+export const SURF_RESUME_MS = 35 * 60 * 1000
+/** 自定义场景那几个字的上限——写在按钮旁边，长了那一屏就不成立了。 */
+export const SURF_SCENE_LEN = 10
+/** 「想对那一刻的自己说的一句话」的字数上限。 */
+export const SURF_LINE_LEN = 40

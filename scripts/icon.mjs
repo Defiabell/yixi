@@ -2,14 +2,20 @@
 // the breathing page's 「息」 skin uses. Prints base64 to stdout; paste it into
 // src/ui/pwa.ts as ICON_PNG_BASE64. Run: node scripts/icon.mjs
 //
+// --surf inverts the two colours (ink ground, paper dot) for 「渡」's own
+// home-screen icon, so it reads as a distinct app next to 一息's rather than
+// a re-skin of it. Paste that run's output into SURF_ICON_PNG_BASE64.
+//
 // Requires Node >= 22.2 — `crc32` was added to node:zlib in that release. On an
 // older Node this import silently succeeds but `crc32` is `undefined`, and the
 // script fails at the call site with "crc32 is not a function".
 import { deflateSync, crc32 } from 'node:zlib'
 
+const SURF = process.argv.includes('--surf')
+
 const SIZE = 512
-const PAPER = [0xf3, 0xf0, 0xe8]
-const INK = [0x1f, 0x1c, 0x18]
+const PAPER = SURF ? [0x1f, 0x1c, 0x18] : [0xf3, 0xf0, 0xe8]
+const INK = SURF ? [0xf3, 0xf0, 0xe8] : [0x1f, 0x1c, 0x18]
 // Dot diameter ≈ 46% of the canvas: inside the 80% maskable safe zone, and
 // large enough to read as a mark rather than a speck at 60px.
 const R = SIZE * 0.23

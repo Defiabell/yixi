@@ -12,17 +12,31 @@
 // that doubles as the shared library for its siblings is a dependency direction
 // that only gets worse as pages are added.
 //
-// --- two faces, one header ---------------------------------------------------
+// --- three faces, one header -------------------------------------------------
 //
-// 「今日」 (goal-tending: /today, /today/goals, /today/review, /today/setup) and
-// 「拦截」 (the original interception console: /review, /settings, /setup) grew
-// into two different jobs sharing one nav row, and a five-to-six tab row was
-// already the ceiling for what fits a phone width without wrapping. Splitting
-// the tabs by face keeps each row at four or five, at the cost of one more tap
-// to cross faces — which is the right trade, because nobody bounces between
-// them mid-task. 「账号」 stays on both, because it is not either face's; the
-// owner's 「发号」 stays only on 拦截, because a ticket window for someone
-// else's interceptions has nothing to do with today's three goals.
+// 「今日」 (goal-tending: /today, /today/goals, /today/review, /today/setup),
+// 「拦截」 (the original interception console: /review, /settings, /setup) and
+// 「渡」 (urge-surfing: /surf/review, /surf/setup — /surf itself, the flow, is
+// reached from the home-screen icon or /surf/review's own entry button, never
+// from this nav, so switching faces never auto-starts a record) are three
+// different jobs sharing one nav row, and a five-to-six tab row was already the ceiling
+// for what fits a phone width without wrapping. Splitting the tabs by face
+// keeps each row at four or five, at the cost of one more tap to cross faces
+// — which is the right trade, because nobody bounces between them mid-task.
+// 「账号」 stays on every face, because it is none of them; the owner's
+// 「发号」 stays only on 拦截, because a ticket window for someone else's
+// interceptions has nothing to do with today's three goals or a craving being
+// surfed. The face switch beside the brand now offers a link to each of the
+// OTHER two faces, in a fixed order (today → breathe → surf), not just one.
+//
+// Being of no face used to mean 「账号」 and 「发号」 silently fell back to
+// 拦截's tabs (`faceOf`'s catch-all): open 账号 from 今日 or 渡 and the header
+// would jump to a face you never asked for. `FACE_COOKIE` fixes that by
+// remembering the last face a real page visit resolved (`faceForPath`, set by
+// src/index.ts), and `consoleHeader`'s optional fourth argument lets a
+// face-less page render with that remembered face instead of the `faceOf`
+// default — the active-tab highlight still follows `active`, only which tab
+// row is drawn changes.
 
 import type { User } from '../types'
 import { msg, type T } from '../i18n'
@@ -37,15 +51,92 @@ import { ICON_CSS, icon, type IconName } from './icons'
  */
 export type ConsolePage = Extract<
   IconName,
-  'today' | 'goals' | 'progress' | 'todaysetup' | 'review' | 'settings' | 'setup' | 'account' | 'admin'
+  | 'today'
+  | 'goals'
+  | 'progress'
+  | 'todaysetup'
+  | 'review'
+  | 'settings'
+  | 'setup'
+  | 'account'
+  | 'admin'
+  | 'surfreview'
+  | 'surfsetup'
 >
 
-/** The two faces one account can be on. `account` and `admin` are not of either. */
-export type Face = 'today' | 'breathe'
+/** The three faces one account can be on. `account` and `admin` are not of any of them. */
+export type Face = 'today' | 'breathe' | 'surf'
 
 /** Which face a page's tab belongs to — the only place that mapping is decided. */
 export function faceOf(page: ConsolePage): Face {
-  return page === 'today' || page === 'goals' || page === 'progress' || page === 'todaysetup' ? 'today' : 'breathe'
+  if (page === 'today' || page === 'goals' || page === 'progress' || page === 'todaysetup') return 'today'
+  if (page === 'surfreview' || page === 'surfsetup') return 'surf'
+  return 'breathe'
+}
+
+// --- remembering the last face -----------------------------------------
+
+/** The cookie that remembers which face a signed-in reader was last on. */
+export const FACE_COOKIE = 'yixi_face'
+
+/** One year — the same lifetime `LANG_COOKIE` gets in src/i18n/index.ts. */
+const FACE_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60
+
+/**
+ * Set-Cookie value for a face choice.
+ *
+ * `HttpOnly` even though nothing here is sensitive: the value only ever picks
+ * which four-or-five tabs a face-less page borrows, so there is no secret to
+ * protect, but there is also no reason to hand a client script a cookie it has
+ * no legitimate use for. `SameSite=Lax`, for the reason `issueCookie` in
+ * src/auth.ts gives — these pages are opened by a top-level navigation from
+ * somewhere else entirely (a home-screen icon, a bookmark), and `Strict` would
+ * drop the cookie on exactly that arrival.
+ */
+export function faceCookie(face: Face): string {
+  return `${FACE_COOKIE}=${face}; Path=/; Secure; SameSite=Lax; Max-Age=${FACE_COOKIE_MAX_AGE_SECONDS}; HttpOnly`
+}
+
+/**
+ * Reads a single cookie by name. Duplicated from src/i18n/index.ts's own
+ * private copy rather than imported: that module keeps itself dependency-free
+ * so anything (including src/auth.ts) can import it without risking a cycle,
+ * and the same argument holds here now that this module has its own cookie.
+ */
+function cookieValue(request: Request, name: string): string | null {
+  const header = request.headers.get('Cookie')
+  if (!header) return null
+  for (const part of header.split(';')) {
+    const eq = part.indexOf('=')
+    if (eq === -1) continue
+    if (part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim()
+  }
+  return null
+}
+
+/** The remembered face, or null when there is none or the value is unrecognised. */
+export function faceFromRequest(request: Request): Face | null {
+  const raw = cookieValue(request, FACE_COOKIE)
+  return raw === 'today' || raw === 'breathe' || raw === 'surf' ? raw : null
+}
+
+/**
+ * Which face owns a path — the router's answer to "did this visit resolve a
+ * face worth remembering?". Segment-aware on purpose: `/todayx` is not
+ * `/today` with something appended, and a plain `startsWith('/today')` would
+ * treat it as one. `/surf` itself counts, even though it is not a tab and
+ * renders no shared header at all (see the module header above): it is still
+ * unambiguously the 渡 flow, and someone who lands there from the home-screen
+ * icon and later taps 账号 should come back to 渡, not to whatever face
+ * happened to be remembered before. `/account` and `/admin` are deliberately
+ * absent — they are of no face, which is exactly the case this whole
+ * mechanism exists to stop from overwriting the cookie.
+ */
+export function faceForPath(path: string): Face | null {
+  if (path === '/today' || path.startsWith('/today/')) return 'today'
+  if (path === '/surf' || path.startsWith('/surf/')) return 'surf'
+  if (path === '/review' || path === '/settings' || path === '/setup') return 'breathe'
+  return null
 }
 
 // The tab tables are module-level constants, so their labels cannot call a
@@ -69,11 +160,33 @@ const BREATHE_TABS: Array<[href: string, name: ConsolePage, label: string]> = [
   ['/setup', 'setup', msg('怎么配')],
 ]
 
+/**
+ * 渡: an urge-surfing flow — ride the craving out instead of jumping. `/surf`
+ * itself is deliberately not a tab: it writes an `urges` row the moment it
+ * loads (src/ui/surf.ts), so a nav entry for it would let somebody browsing
+ * between faces silently start a record just by landing here. The face's home
+ * is /surf/review instead (see FACE_HOME below), and /surf/review carries its
+ * own entry button into the flow for when an urge actually needs surfing.
+ */
+const SURF_TABS: Array<[href: string, name: ConsolePage, label: string]> = [
+  ['/surf/review', 'surfreview', msg('回看')],
+  ['/surf/setup', 'surfsetup', msg('怎么配')],
+]
+
 const FACE_HOME: Record<Face, { href: string; label: string }> = {
   today: { href: '/today', label: msg('今日') },
   breathe: { href: '/review', label: msg('拦截') },
+  // Not /surf: the face switch is a link somebody idly taps to look around,
+  // and /surf writes a record on load. /surf/review is read-only.
+  surf: { href: '/surf/review', label: msg('渡') },
 }
-const OTHER_FACE: Record<Face, Face> = { today: 'breathe', breathe: 'today' }
+
+/**
+ * Fixed display order for the face switch — today, then breathe, then surf —
+ * so a page on any face always offers the other two in the same sequence
+ * rather than one that depends on which face happens to be current.
+ */
+const FACES: Face[] = ['today', 'breathe', 'surf']
 
 /**
  * Four or five tabs a face, plus 账号 on both and 发号 for the owner on 拦截
@@ -92,21 +205,27 @@ const OTHER_FACE: Record<Face, Face> = { today: 'breathe', breathe: 'today' }
  * Every remaining tab keeps its word: 「回顾」 、「回看」 and 「怎么配」 have no
  * icon anyone would guess, and an icon-only nav would trade a scroll nobody can
  * see for a guess nobody can make. The current tab sits on a pale ink disc.
+ *
+ * `face` is an override for a page that belongs to no face (`/account`,
+ * `/admin`): when given, it picks the tab row, the face name and the two
+ * face-switch links instead of `faceOf(active)`. The active-tab highlight
+ * still follows `active` alone — overriding which row is drawn must never
+ * change which tab in that row lights up.
  */
-export function consoleHeader(user: User, active: ConsolePage, t: T): string {
-  const face = faceOf(active)
+export function consoleHeader(user: User, active: ConsolePage, t: T, face?: Face): string {
+  const resolvedFace = face ?? faceOf(active)
   const tab = (href: string, name: ConsolePage, text: string): string =>
     `<a href="${href}"${active === name ? ' class="on" aria-current="page"' : ''}>${icon(name)}<span class="lb">${text}</span></a>`
-  const faceTabs = face === 'today' ? TODAY_TABS : BREATHE_TABS
-  const other = FACE_HOME[OTHER_FACE[face]]
+  const faceTabs = resolvedFace === 'today' ? TODAY_TABS : resolvedFace === 'breathe' ? BREATHE_TABS : SURF_TABS
+  const otherFaces = FACES.filter((f) => f !== resolvedFace).map((f) => FACE_HOME[f])
   return `<header>
-  <span class="brand">一息</span><span class="facename">· ${t(FACE_HOME[face].label)}</span>
+  <span class="brand">一息</span><span class="facename">· ${t(FACE_HOME[resolvedFace].label)}</span>
   <span class="who">${escapeHtml(user.name)}</span>
-  <a class="face" href="${other.href}">${t(other.label)} ›</a>
+  ${otherFaces.map((home) => `<a class="face" href="${home.href}">${t(home.label)} ›</a>`).join('\n  ')}
   <nav aria-label="${t('导航')}">
     ${faceTabs.map(([href, name, label]) => tab(href, name, t(label))).join('\n    ')}
     ${tab('/account', 'account', t('账号'))}
-    ${user.is_owner && face === 'breathe' ? tab('/admin', 'admin', t('发号')) : ''}
+    ${user.is_owner && resolvedFace === 'breathe' ? tab('/admin', 'admin', t('发号')) : ''}
   </nav>
 </header>`
 }

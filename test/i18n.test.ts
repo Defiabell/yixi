@@ -43,10 +43,13 @@ import schemeRaw from '../src/scheme.ts?raw'
 import schemesRaw from '../src/schemes.ts?raw'
 import snapshotRaw from '../src/snapshot.ts?raw'
 import statsRaw from '../src/stats.ts?raw'
+import surfscenesRaw from '../src/surfscenes.ts?raw'
 import turnstileRaw from '../src/turnstile.ts?raw'
 import typesRaw from '../src/types.ts?raw'
+import urgesRaw from '../src/urges.ts?raw'
 import uiAccountRaw from '../src/ui/account.ts?raw'
 import uiBreatheRaw from '../src/ui/breathe.ts?raw'
+import uiBreathingRaw from '../src/ui/breathing.ts?raw'
 import uiConsoleRaw from '../src/ui/console.ts?raw'
 import uiGoalsRaw from '../src/ui/goals.ts?raw'
 import uiIconsRaw from '../src/ui/icons.ts?raw'
@@ -59,6 +62,9 @@ import uiPwaRaw from '../src/ui/pwa.ts?raw'
 import uiReviewRaw from '../src/ui/review.ts?raw'
 import uiSchemefieldRaw from '../src/ui/schemefield.ts?raw'
 import uiSettingsRaw from '../src/ui/settings.ts?raw'
+import uiSurfRaw from '../src/ui/surf.ts?raw'
+import uiSurfreviewRaw from '../src/ui/surfreview.ts?raw'
+import uiSurfsetupRaw from '../src/ui/surfsetup.ts?raw'
 import uiSetupRaw from '../src/ui/setup.ts?raw'
 import uiOnboardingRaw from '../src/ui/onboarding.ts?raw'
 import uiTodayRaw from '../src/ui/today.ts?raw'
@@ -458,6 +464,7 @@ export const CONVERTED: string[] = [
   'src/ui/progress.ts',
   'src/ui/todaysetup.ts',
   'src/ui/breathe.ts',
+  'src/ui/breathing.ts',
   'src/ui/landing.ts',
   'src/ui/guides.ts',
   'src/ui/mock.ts',
@@ -468,6 +475,10 @@ export const CONVERTED: string[] = [
   'src/ui/schemefield.ts',
   'src/ui/review.ts',
   'src/ui/setup.ts',
+  'src/ui/surf.ts',
+  'src/ui/surfreview.ts',
+  'src/ui/surfsetup.ts',
+  'src/surfscenes.ts',
 ]
 
 /** Raw source for each CONVERTED path, keyed the same way. */
@@ -478,6 +489,7 @@ const SOURCES: Record<string, string> = {
   'src/ui/progress.ts': uiProgressRaw,
   'src/ui/todaysetup.ts': uiTodaysetupRaw,
   'src/ui/breathe.ts': uiBreatheRaw,
+  'src/ui/breathing.ts': uiBreathingRaw,
   'src/ui/landing.ts': uiLandingRaw,
   'src/ui/guides.ts': uiGuidesRaw,
   'src/ui/mock.ts': uiMockRaw,
@@ -488,6 +500,10 @@ const SOURCES: Record<string, string> = {
   'src/ui/schemefield.ts': uiSchemefieldRaw,
   'src/ui/review.ts': uiReviewRaw,
   'src/ui/setup.ts': uiSetupRaw,
+  'src/ui/surf.ts': uiSurfRaw,
+  'src/ui/surfreview.ts': uiSurfreviewRaw,
+  'src/ui/surfsetup.ts': uiSurfsetupRaw,
+  'src/surfscenes.ts': surfscenesRaw,
   'src/ui/onboarding.ts': uiOnboardingRaw,
 }
 
@@ -525,10 +541,13 @@ const ALL_SOURCES: Record<string, string> = {
   'src/scheme.ts': schemeRaw,
   'src/snapshot.ts': snapshotRaw,
   'src/stats.ts': statsRaw,
+  'src/surfscenes.ts': surfscenesRaw,
   'src/turnstile.ts': turnstileRaw,
   'src/types.ts': typesRaw,
+  'src/urges.ts': urgesRaw,
   'src/ui/account.ts': uiAccountRaw,
   'src/ui/breathe.ts': uiBreatheRaw,
+  'src/ui/breathing.ts': uiBreathingRaw,
   'src/ui/console.ts': uiConsoleRaw,
   'src/ui/goals.ts': uiGoalsRaw,
   'src/ui/icons.ts': uiIconsRaw,
@@ -542,6 +561,9 @@ const ALL_SOURCES: Record<string, string> = {
   'src/ui/schemefield.ts': uiSchemefieldRaw,
   'src/ui/settings.ts': uiSettingsRaw,
   'src/ui/setup.ts': uiSetupRaw,
+  'src/ui/surf.ts': uiSurfRaw,
+  'src/ui/surfreview.ts': uiSurfreviewRaw,
+  'src/ui/surfsetup.ts': uiSurfsetupRaw,
   'src/ui/onboarding.ts': uiOnboardingRaw,
   'src/ui/today.ts': uiTodayRaw,
   'src/ui/todaysetup.ts': uiTodaysetupRaw,
@@ -558,7 +580,7 @@ const ALL_SOURCES: Record<string, string> = {
  * must also bump this number in the same diff, or "guard rail: ALL_SOURCES
  * count" below goes red. Bump both together.
  */
-const ALL_SOURCES_EXPECTED_COUNT = 37
+const ALL_SOURCES_EXPECTED_COUNT = 43
 
 describe('guard rail: ALL_SOURCES has not silently drifted from its pinned count', () => {
   it('covers exactly as many files as it is pinned to', () => {
