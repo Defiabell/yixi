@@ -296,8 +296,10 @@ export interface PageOptions {
    * Only read on an indexable page — the same rule as every other og:* tag.
    *
    * The picture itself is not served by this Worker: it is a static file in
-   * `pages/public/`, which the Pages project hands out before any request
-   * reaches the function. A Worker-only deployment therefore has no image at
+   * `pages/public/`, and `pages/public/_routes.json` keeps that one path out
+   * of the `[[path]]` function so Pages serves the file itself (Functions
+   * match before static assets, so without the exclusion the catch-all
+   * would answer with the app's redirect). A Worker-only deployment therefore has no image at
    * this URL and its unfurl falls back to text, which is the pre-image state
    * rather than a broken card — crawlers ignore an og:image that 404s.
    */
