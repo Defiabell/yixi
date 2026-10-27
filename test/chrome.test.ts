@@ -665,6 +665,23 @@ describe('what may be indexed', () => {
   })
 
   /**
+   * A share card with no picture is the text-only fallback every client
+   * renders when the tags are missing — so the picture is the whole point of
+   * emitting them. It follows the request origin like canonical does, is
+   * declared with its size, and switches the Twitter card to the wide one;
+   * `summary` alone would show the picture as a thumbnail.
+   */
+  it('gives the landing page a preview picture on its own origin', async () => {
+    const mine = await renderLanding(new Request('https://breathe.example.org/')).text()
+    expect(mine).toContain('<meta property="og:image" content="https://breathe.example.org/og.png">')
+    expect(mine).toContain('<meta property="og:image:width" content="1200">')
+    expect(mine).toContain('<meta property="og:image:height" content="630">')
+    expect(mine).toContain('<meta name="twitter:card" content="summary_large_image">')
+    expect(mine).toContain('<meta name="twitter:image" content="https://breathe.example.org/og.png">')
+    expect(mine).not.toContain('<meta name="twitter:card" content="summary">')
+  })
+
+  /**
    * og:* is for pages meant to be shared. A chat client fetches these URLs
    * server-side to build the preview card, so emitting them on a session page
    * would mean a bot opening somebody's breathing session.
