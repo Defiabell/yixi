@@ -42,6 +42,10 @@ export function renderLanding(request: Request): Response {
     // The live origin, not a constant: a self-hosted copy must not name this
     // instance as its canonical URL.
     canonical: url.origin + '/',
+    // Same origin rule for the picture. The file is pages/public/og.png,
+    // 1200×630, rendered once from a card that reuses the 「墨」 tokens; see
+    // PageOptions.image for why the Worker itself does not serve it.
+    image: { url: url.origin + '/og.png', width: 1200, height: 630 },
     // Static text and no session, so it may sit in a cache for a minute — but
     // the text is no longer the same for every visitor: it follows the
     // language cookie and Accept-Language. `vary` is what the browser's own

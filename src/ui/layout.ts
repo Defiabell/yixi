@@ -291,6 +291,18 @@ export interface PageOptions {
    */
   canonical?: string
   /**
+   * The preview picture for `og:image` / `twitter:image`, absolute URL plus
+   * its pixel size, so a chat client can lay the card out before fetching it.
+   * Only read on an indexable page — the same rule as every other og:* tag.
+   *
+   * The picture itself is not served by this Worker: it is a static file in
+   * `pages/public/`, which the Pages project hands out before any request
+   * reaches the function. A Worker-only deployment therefore has no image at
+   * this URL and its unfurl falls back to text, which is the pre-image state
+   * rather than a broken card — crawlers ignore an og:image that 404s.
+   */
+  image?: { url: string; width: number; height: number }
+  /**
    * The manifest/touch-icon/app-title block inlined into `<head>`. Defaults
    * to `PWA_HEAD` — every existing caller keeps pointing at 一息's own
    * manifest and icon. `/surf`'s pages pass `SURF_PWA_HEAD` so "add to
@@ -318,7 +330,17 @@ function socialTags(o: PageOptions): string {
     if (o.description) tags.push(`<meta property="og:description" content="${escapeHtml(o.description)}">`)
     if (o.canonical) tags.push(`<meta property="og:url" content="${escapeHtml(o.canonical)}">`)
     tags.push('<meta property="og:type" content="website">')
-    tags.push('<meta name="twitter:card" content="summary">')
+    // With a picture the card is the wide one and names the picture twice —
+    // Twitter/X reads only its own tag, everyone else reads og:image.
+    if (o.image) {
+      tags.push(`<meta property="og:image" content="${escapeHtml(o.image.url)}">`)
+      tags.push(`<meta property="og:image:width" content="${o.image.width}">`)
+      tags.push(`<meta property="og:image:height" content="${o.image.height}">`)
+      tags.push('<meta name="twitter:card" content="summary_large_image">')
+      tags.push(`<meta name="twitter:image" content="${escapeHtml(o.image.url)}">`)
+    } else {
+      tags.push('<meta name="twitter:card" content="summary">')
+    }
   }
   return tags.length > 0 ? '\n' + tags.join('\n') : ''
 }
