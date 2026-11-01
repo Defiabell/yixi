@@ -312,6 +312,12 @@ export interface PageOptions {
    * shortcut into the same installed app.
    */
   pwaHead?: string
+  /**
+   * JSON-LD for the page's `<script type="application/ld+json">`, public pages
+   * only (see src/ui/seo.ts). Serialized with `jsonLdScript`, so a `</script>`
+   * inside a title cannot end the element.
+   */
+  jsonLd?: unknown
 }
 
 /**
@@ -359,7 +365,7 @@ export function pageHtml(o: PageOptions): string {
 <meta name="theme-color" media="(prefers-color-scheme:dark)" content="${skin.barDark}">
 ${o.indexable ? '' : '<meta name="robots" content="noindex,nofollow">\n'}<link rel="icon" href="data:,">
 ${o.pwaHead ?? PWA_HEAD}
-<title>${escapeHtml(o.title)}</title>${socialTags(o)}
+<title>${escapeHtml(o.title)}</title>${socialTags(o)}${o.jsonLd === undefined ? '' : '\n' + jsonLdScript(o.jsonLd)}
 <style>${skin.tokens}${BASE_CSS}${o.css ?? ''}</style>${o.turnstile ? '\n' + TURNSTILE_LOADER : ''}
 </head>
 <body${o.bodyAttrs ? ' ' + o.bodyAttrs : ''}>
@@ -406,6 +412,12 @@ export function jsonForScript(value: unknown): string {
     .replace(/</g, '\\u003c')
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029')
+}
+
+/** JSON-LD data block: `<`, `>` and `&` go out as \u escapes (same reasoning as jsonForScript). */
+export function jsonLdScript(value: unknown): string {
+  const json = JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
+  return `<script type="application/ld+json">${json}</script>`
 }
 
 /**

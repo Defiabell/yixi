@@ -26,6 +26,7 @@ import {
 import { handleSettings } from './ui/settings'
 import { handleAdmin } from './api/admin'
 import { renderGuide, sitemap } from './ui/guides'
+import { llmsTxt } from './ui/seo'
 import { renderLanding } from './ui/landing'
 import { deleteExpiredWebSessions, deleteStaleSessions, setUserLocale } from './db'
 import { checkRate, pruneRateLimits } from './ratelimit'
@@ -116,6 +117,8 @@ export default {
       if (path === '/' && method === 'GET') return renderLanding(request)
       if ((path === '/guides/iphone-shortcuts' || path === '/compare/one-sec') && method === 'GET') return renderGuide(request)
       if (path === '/sitemap.xml' && method === 'GET') return sitemap(url.origin)
+      // The plain-text index AI crawlers read (llmstxt.org); public pages only.
+      if (path === '/llms.txt' && method === 'GET') return llmsTxt(url.origin)
       // robots.txt is the half of the story a meta tag cannot tell: it names
       // what may be crawled before the crawler has fetched anything. The
       // Disallow list is deliberately redundant with each page's own

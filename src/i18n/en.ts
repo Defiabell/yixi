@@ -961,4 +961,35 @@ export const EN: Record<string, string> = {
     'Home screen: open /surf in Safari, then Share → Add to Home Screen, and you get a separate “Surf” icon.',
   '快捷指令：新建一个「打开 URL」动作，地址填 {origin}/surf?k=你的令牌（令牌在<a href="/account">账号</a>页），命名为「渡」，就能对 Siri 说。':
     'Shortcuts: make a new “Open URL” action, with the address {origin}/surf?k=your token (the token is on the <a href="/account">Account</a> page), name it “Surf”, and you can say it to Siri.',
+
+  // src/ui/seo.ts — JSON-LD, /llms.txt and the “ask an AI” row on the public articles
+  '请先阅读 {url}（「{title}」），然后用中文概括要点，并告诉我可以怎么用。':
+    'Read {url} (“{title}”) first, then summarize the key points and tell me how I can apply them.',
+  '问问 AI': 'Ask an AI',
+  '打开 App 之前先呼吸十秒；「今日」收好最重要的几件事；「渡」陪你熬过十分钟的冲动。一个网页加 iOS 快捷指令，不用装 App，跑在 Cloudflare 免费额度里；源码 MIT 开源，可以自建。':
+    'Breathe for ten seconds before an app opens; keep the few things that matter on one “Today” page; let “Surf” sit with you through a ten-minute urge. A web page plus iOS Shortcuts, no app to install, running inside the Cloudflare free tier; MIT-licensed source you can self-host.',
+  '作者：Jinkun Sun（Defiabell）· https://defiabell.com/ · https://github.com/Defiabell':
+    'Author: Jinkun Sun (Defiabell) · https://defiabell.com/ · https://github.com/Defiabell',
+  '站点：{origin}/': 'Site: {origin}/',
+  '语言：中文（界面也有英文版，任何页面加 ?lang=en）':
+    'Language: English (Chinese is the default; add ?lang=en to any page)',
+  '怎么用': 'How it works',
+  '拦（Breathe）：在 iPhone 快捷指令里给要拦的 App 加一条自动化。打开它时 Safari 先显示呼吸页，十秒后先给「算了」、再给「继续打开」，选择会被记下。':
+    'Breathe: add an iPhone Shortcuts automation to the app you want to pause. Opening it brings up a breathing page in Safari; after ten seconds it offers “never mind” first and “open anyway” second, and keeps the receipt.',
+  '引（Today）：每天早上打开的一页，放未来几周最重要的三件事（最多九件），每件带今天的子任务、最近七天的点，和一个直接跳进 App 去做的按钮。':
+    'Today: one page to open every morning with the three things that matter most over the coming weeks (up to nine), each with today\'s sub-tasks, seven dots for the last seven days, and a button that jumps straight into the app where the work happens.',
+  '渡（Surf）：冲动来了点一下，它陪你把手机放下，十分钟后再决定。':
+    'Surf: when an urge shows up, tap it; it sits with you while the phone is down and lets you decide again ten minutes later.',
+  '故障时放行：网络或服务出问题时不拦。这是提醒，不是锁。':
+    'Fails open: when the network or the service is down, nothing is blocked. It is a nudge, not a lock.',
+  '使用记录存在所用实例的数据库里，运营者可访问；不想放在别人的服务器上，照 README 自建一份。':
+    'Usage records live in the database of the instance you use and its operator can read them; if you would rather not keep them on somebody else\'s server, deploy your own by following the README.',
+  '链接': 'Links',
+  '首页': 'Home',
+  '一息是什么，注册与登录入口': 'What Yixi is, with sign-up and sign-in',
+  '源码（GitHub）': 'Source (GitHub)',
+  'MIT 协议，部署说明在 README': 'MIT licence; deployment steps are in the README',
+  '需要登录的页面': 'Signed-in pages',
+  '/today、/review、/settings、/setup、/surf、/account 需要账号，不收录、不进 sitemap。':
+    '/today, /review, /settings, /setup, /surf and /account need an account; they are not indexed and not in the sitemap.',
 }

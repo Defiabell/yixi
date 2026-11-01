@@ -1,6 +1,7 @@
 import { DEFAULT_THEME, langSwitch, page } from './layout'
 import { inAppBrowserPattern } from '../inapp'
 import { localeOf, translator } from '../i18n'
+import { landingDescription, landingJsonLd, landingTitle } from './seo'
 
 /**
  * GET / — what a stranger sees, and now the front door as well: /register and
@@ -27,7 +28,7 @@ export function renderLanding(request: Request): Response {
   const langLine = langSwitch(loc, url.search)
 
   return page({
-    title: t('一息 —— 打开 App 之前先呼吸十秒，「今日」收好最重要的三件事'),
+    title: landingTitle(t),
     theme: DEFAULT_THEME,
     lang: loc,
     css: LANDING_CSS,
@@ -37,8 +38,9 @@ export function renderLanding(request: Request): Response {
     indexable: true,
     // One literal where this used to be three concatenated ones: `t()` looks
     // itself up by its whole first argument, so the sentence cannot be built
-    // out of pieces.
-    description: t('在 iPhone 上打开小红书这类 App 之前，先看着一团墨呼吸十秒，然后再决定进不进去；「今日」一页则收好未来一段时间最重要的三件事，一按就去做。自建的 One Sec 替代品：一个网页加 iOS 快捷指令，不用装 App，跑在 Cloudflare 免费额度里。'),
+    // out of pieces. The same sentence feeds the WebSite node (src/ui/seo.ts).
+    description: landingDescription(t),
+    jsonLd: landingJsonLd(url.origin, loc),
     // The live origin, not a constant: a self-hosted copy must not name this
     // instance as its canonical URL.
     canonical: url.origin + '/',
