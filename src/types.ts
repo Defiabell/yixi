@@ -28,6 +28,17 @@ export interface Env {
    */
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET?: string
+  /**
+   * Optional. The one origin the public pages declare as theirs — canonical,
+   * og:url, og:image, JSON-LD, sitemap, robots' Sitemap line, llms.txt — for
+   * a deployment answering on more than one hostname (a custom domain plus
+   * its `*.pages.dev`). Unset, every declaration follows the request's own
+   * origin, which is what a self-hosted copy wants. Only the declarations
+   * change: nothing redirects, and links a user copies out of /setup still
+   * carry the hostname they were opened on. See `publicOrigin` in
+   * src/ui/seo.ts.
+   */
+  CANONICAL_ORIGIN?: string
 }
 
 export interface User {

@@ -35,6 +35,55 @@ describe('public guides', () => {
       .toEqual([origin + '/', ...paths.map(path => origin + path)])
   })
 
+  /**
+   * One Pages project, two hostnames: the custom domain and the pages.dev
+   * name existing Shortcuts still call. CANONICAL_ORIGIN points every public
+   * declaration on either host at one of them; without it the request's own
+   * origin stays in charge (the self-host default the tests above cover).
+   */
+  it('declares CANONICAL_ORIGIN on every public surface when it is set', async () => {
+    const canonical = 'https://breathe.example.com'
+    const aliased = { ...env, CANONICAL_ORIGIN: canonical }
+    const alias = 'https://breathe-app.pages.dev'
+    const landing = await (await worker.fetch(new Request(alias + '/'), aliased)).text()
+    expect(landing).toContain(`<link rel="canonical" href="${canonical}/">`)
+    expect(landing).toContain(`<meta property="og:url" content="${canonical}/">`)
+    expect(landing).toContain(`<meta property="og:image" content="${canonical}/og.png">`)
+    expect(landing).toContain(`"url":"${canonical}/"`)
+    expect(landing).not.toContain(alias)
+    for (const path of paths) {
+      const html = await (await worker.fetch(new Request(alias + path), aliased)).text()
+      expect(html).toContain(`<link rel="canonical" href="${canonical + path}">`)
+      expect(html).toContain(`"mainEntityOfPage":"${canonical + path}"`)
+      expect(html).not.toContain(alias)
+    }
+    const xml = await (await worker.fetch(new Request(alias + '/sitemap.xml'), aliased)).text()
+    expect([...xml.matchAll(/<loc>(.*?)<\/loc>/g)].map(match => match[1]))
+      .toEqual([canonical + '/', ...paths.map(path => canonical + path)])
+    const robots = await (await worker.fetch(new Request(alias + '/robots.txt'), aliased)).text()
+    expect(robots).toContain(`Sitemap: ${canonical}/sitemap.xml`)
+    const llms = await (await worker.fetch(new Request(alias + '/llms.txt'), aliased)).text()
+    expect(llms).toContain(`${canonical}/`)
+    expect(llms).not.toContain(alias)
+  })
+
+  it('ignores a malformed CANONICAL_ORIGIN instead of failing the page', async () => {
+    const broken = { ...env, CANONICAL_ORIGIN: 'not a url' }
+    const response = await worker.fetch(new Request(origin + '/'), broken)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain(`<link rel="canonical" href="${origin}/">`)
+  })
+
+  it('links the landing page to the author site with a plain visible link', async () => {
+    for (const locale of ['zh', 'en']) {
+      const html = await (await worker.fetch(new Request(origin + '/', {
+        headers: { cookie: `yixi_lang=${locale}` },
+      }), env)).text()
+      const body = html.slice(html.indexOf('<body'))
+      expect(body).toContain('<a href="https://defiabell.com/" rel="author">defiabell.com</a>')
+    }
+  })
+
   it('keeps setup and personal data behind sign-in', async () => {
     for (const path of ['/setup', '/today', '/review', '/settings', '/account']) {
       const response = await worker.fetch(new Request(origin + path), env)

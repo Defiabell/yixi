@@ -14,7 +14,7 @@ import { landingDescription, landingJsonLd, landingTitle } from './seo'
  * only a hash, and this page says so in the same breath as the guarantee that
  * still holds — otherwise the first paragraph is doing marketing.
  */
-export function renderLanding(request: Request): Response {
+export function renderLanding(request: Request, origin = new URL(request.url).origin): Response {
   const url = new URL(request.url)
   const loc = localeOf(request, null)
   const t = translator(loc)
@@ -40,14 +40,15 @@ export function renderLanding(request: Request): Response {
     // itself up by its whole first argument, so the sentence cannot be built
     // out of pieces. The same sentence feeds the WebSite node (src/ui/seo.ts).
     description: landingDescription(t),
-    jsonLd: landingJsonLd(url.origin, loc),
-    // The live origin, not a constant: a self-hosted copy must not name this
+    jsonLd: landingJsonLd(origin, loc),
+    // The live origin (or the deployment's CANONICAL_ORIGIN, passed in by the
+    // router), never a constant: a self-hosted copy must not name this
     // instance as its canonical URL.
-    canonical: url.origin + '/',
+    canonical: origin + '/',
     // Same origin rule for the picture. The file is pages/public/og.png,
     // 1200×630, rendered once from a card that reuses the 「墨」 tokens; see
     // PageOptions.image for why the Worker itself does not serve it.
-    image: { url: url.origin + '/og.png', width: 1200, height: 630 },
+    image: { url: origin + '/og.png', width: 1200, height: 630 },
     // Static text and no session, so it may sit in a cache for a minute — but
     // the text is no longer the same for every visitor: it follows the
     // language cookie and Accept-Language. `vary` is what the browser's own
@@ -100,7 +101,8 @@ export function renderLanding(request: Request): Response {
 <h2>${t('开始用')}</h2>
 <p class="looks go"><a href="/register">${t('注册')}</a><a href="/login">${t('登录')}</a></p>
 
-<p class="foot">${t('已经有别人发给你的 token 了？<a href="/claim">给它绑上邮箱和密码</a>，别重新注册——\n重新注册会拿到一把新的，旧记录就找不回来了。<br>\n配到 iPhone 上的一步一步说明在<a href="/setup">怎么配</a>，登录之后打开就行。<br>\n源码 · <a href="https://github.com/Defiabell/yixi" rel="noreferrer">github.com/Defiabell/yixi</a>')}</p>
+<p class="foot">${t('已经有别人发给你的 token 了？<a href="/claim">给它绑上邮箱和密码</a>，别重新注册——\n重新注册会拿到一把新的，旧记录就找不回来了。<br>\n配到 iPhone 上的一步一步说明在<a href="/setup">怎么配</a>，登录之后打开就行。<br>\n源码 · <a href="https://github.com/Defiabell/yixi" rel="noreferrer">github.com/Defiabell/yixi</a>')}<br>
+${t('作者：Jinkun · <a href="https://defiabell.com/" rel="author">defiabell.com</a>')}</p>
 <p><a href="/guides/iphone-shortcuts">${t("iPhone 快捷指令教程：打开 App 前先呼吸十秒")}</a><br><a href="/compare/one-sec">${t("一息与 one sec：安装、功能和隐私比较")}</a></p>
 <p class="lang">${langLine}</p>
 </main>`,

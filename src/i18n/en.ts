@@ -258,6 +258,8 @@ export const EN: Record<string, string> = {
   登录: 'Sign in',
   '已经有别人发给你的 token 了？<a href="/claim">给它绑上邮箱和密码</a>，别重新注册——\n重新注册会拿到一把新的，旧记录就找不回来了。<br>\n配到 iPhone 上的一步一步说明在<a href="/setup">怎么配</a>，登录之后打开就行。<br>\n源码 · <a href="https://github.com/Defiabell/yixi" rel="noreferrer">github.com/Defiabell/yixi</a>':
     'Already have a token somebody sent you? <a href="/claim">Attach an email address and a password to it</a> rather than signing up again —\nsigning up again hands you a new one, and the old records are out of reach.<br>\nThe step-by-step for setting it up on an iPhone is under <a href="/setup">Guide</a>, once you have signed in.<br>\nSource · <a href="https://github.com/Defiabell/yixi" rel="noreferrer">github.com/Defiabell/yixi</a>',
+  '作者：Jinkun · <a href="https://defiabell.com/" rel="author">defiabell.com</a>':
+    'By Jinkun · <a href="https://defiabell.com/" rel="author">defiabell.com</a>',
 
   // --- the account pages (src/ui/account.ts) ---------------------------------
   // The four pages a stranger or a signed-in reader meets around their own

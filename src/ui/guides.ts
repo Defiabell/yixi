@@ -4,7 +4,7 @@ import { GUIDES_REVIEWED, GUIDE_PATHS, askAiRow, guideDescription, guideJsonLd, 
 
 export const PUBLIC_PATHS = ['/', ...GUIDE_PATHS] as const
 
-export function renderGuide(request: Request): Response {
+export function renderGuide(request: Request, origin = new URL(request.url).origin): Response {
   const url = new URL(request.url)
   const loc = localeOf(request, null)
   const t = translator(loc)
@@ -12,10 +12,10 @@ export function renderGuide(request: Request): Response {
   const path: GuidePath = comparison ? '/compare/one-sec' : '/guides/iphone-shortcuts'
   const title = guideTitle(t, path)
   const description = guideDescription(t, path)
-  const canonical = url.origin + path
+  const canonical = origin + path
   return page({
     title, description, canonical,
-    jsonLd: guideJsonLd(url.origin, loc, path),
+    jsonLd: guideJsonLd(origin, loc, path),
     theme: DEFAULT_THEME, lang: loc, indexable: true,
     cacheControl: 'public, max-age=60', vary: 'Accept-Language, Cookie',
     css: GUIDE_CSS,

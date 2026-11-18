@@ -2,6 +2,16 @@ name = "yixi-app"
 pages_build_output_dir = "public"
 compatibility_date = "2026-07-01"
 
+# This project answers on two hostnames: the custom domain and the original
+# yixi-app.pages.dev, which existing iPhone Shortcuts still call and which
+# therefore must keep working with no redirect. CANONICAL_ORIGIN makes both
+# declare the custom domain in canonical / og / JSON-LD / sitemap / robots /
+# llms.txt; nothing else follows it. Cloning this? Delete the line (every
+# declaration then follows the request's own hostname) or put your own
+# domain here.
+[vars]
+CANONICAL_ORIGIN = "https://yixi.defiabell.com"
+
 # NOTE for anyone cloning this: `database_id` below is the author's own
 # database. It is not a credential — using it requires an API token for that
 # account — but you MUST replace it with the id `wrangler d1 create yixi` prints

@@ -26,7 +26,7 @@ import {
 import { handleSettings } from './ui/settings'
 import { handleAdmin } from './api/admin'
 import { renderGuide, sitemap } from './ui/guides'
-import { llmsTxt } from './ui/seo'
+import { llmsTxt, publicOrigin } from './ui/seo'
 import { renderLanding } from './ui/landing'
 import { deleteExpiredWebSessions, deleteStaleSessions, setUserLocale } from './db'
 import { checkRate, pruneRateLimits } from './ratelimit'
@@ -114,17 +114,19 @@ export default {
       // language preference off, the cookie this router has just set and the
       // browser's own Accept-Language are all there is to go on.
       if (path === '/mock' && method === 'GET') return renderMock(request)
-      if (path === '/' && method === 'GET') return renderLanding(request)
-      if ((path === '/guides/iphone-shortcuts' || path === '/compare/one-sec') && method === 'GET') return renderGuide(request)
-      if (path === '/sitemap.xml' && method === 'GET') return sitemap(url.origin)
+      if (path === '/' && method === 'GET') return renderLanding(request, publicOrigin(env.CANONICAL_ORIGIN, url))
+      if ((path === '/guides/iphone-shortcuts' || path === '/compare/one-sec') && method === 'GET') {
+        return renderGuide(request, publicOrigin(env.CANONICAL_ORIGIN, url))
+      }
+      if (path === '/sitemap.xml' && method === 'GET') return sitemap(publicOrigin(env.CANONICAL_ORIGIN, url))
       // The plain-text index AI crawlers read (llmstxt.org); public pages only.
-      if (path === '/llms.txt' && method === 'GET') return llmsTxt(url.origin)
+      if (path === '/llms.txt' && method === 'GET') return llmsTxt(publicOrigin(env.CANONICAL_ORIGIN, url))
       // robots.txt is the half of the story a meta tag cannot tell: it names
       // what may be crawled before the crawler has fetched anything. The
       // Disallow list is deliberately redundant with each page's own
       // noindex — a crawler that ignores one still sees the other, and the
       // pages named here are the ones whose URLs carry a session or a token.
-      if (path === '/robots.txt' && method === 'GET') return robotsTxt(url.origin)
+      if (path === '/robots.txt' && method === 'GET') return robotsTxt(publicOrigin(env.CANONICAL_ORIGIN, url))
 
       // Home-screen files. Public and cacheable: iOS fetches them without a
       // cookie when the icon is added, and nothing in them is per-user.

@@ -19,6 +19,25 @@ export const PERSON = {
 } as const
 
 /**
+ * Origin the public pages name as their own. `CANONICAL_ORIGIN` when it is a
+ * valid http(s) origin, otherwise the request's — so a self-hosted copy keeps
+ * declaring itself, and an instance reachable on two hostnames points both at
+ * one. A malformed value falls back rather than throwing: a typo in a var
+ * must not take the front page down.
+ */
+export function publicOrigin(configured: string | undefined, requestUrl: URL): string {
+  if (configured) {
+    try {
+      const u = new URL(configured)
+      if (u.protocol === 'https:' || u.protocol === 'http:') return u.origin
+    } catch {
+      // fall through to the request's own origin
+    }
+  }
+  return requestUrl.origin
+}
+
+/**
  * The date both public articles were written and their sources checked — the
  * same one printed in their footers. It is the articles' content date, so it
  * is what the sitemap and the Article nodes report; bump it when the text is
